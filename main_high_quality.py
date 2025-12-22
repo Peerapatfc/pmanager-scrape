@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from scraper import PMScraper
+from scraper_high_quality import PMScraper
 import pandas as pd
 
 
@@ -13,7 +13,7 @@ def main():
         print("Error: PM_USERNAME and PM_PASSWORD must be set in .env file")
         # We'll continue for now since we might just be testing the setup
     
-    print("Starting scraper...")
+    print("Starting High Quality scraper...")
     scraper = PMScraper()
     try:
         scraper.start(headless=False) 
@@ -32,25 +32,26 @@ def main():
                 est_val = data["estimated_value"]
                 ask_price = data["asking_price"]
                 
-                # Verify filter
-                status = "OK" if ask_price < 1000000 else "FILTER FAIL"
-                print(f"[{i+1}/{len(player_ids)}] ID: {pid} | Est. Value: {est_val:,} | Asking: {ask_price:,} [{status}]")
+                # Calculate Value Difference
+                value_diff = est_val - ask_price
+                data["value_diff"] = value_diff
+
+                print(f"[{i+1}/{len(player_ids)}] ID: {pid} | Est. Value: {est_val:,} | Asking: {ask_price:,} | Diff: {value_diff:,}")
+                results.append(data)
                 
-                if ask_price < 1000000:
-                    results.append(data)
-                
-            # 3. Sort by Value (Descending)
-            results.sort(key=lambda x: x["estimated_value"], reverse=True)
+            # 3. Sort by Value Difference (Descending)
+            results.sort(key=lambda x: x["value_diff"], reverse=True)
             
             # 4. List Top 5
             print("\n" + "="*60)
-            print("TOP 5 PLAYERS BY ESTIMATED TRANSFER VALUE (Asking Price < 1M Verified)")
+            print("TOP 5 PLAYERS BY VALUE DIFFERENCE (Est. Value - Asking Price)")
             print("="*60)
             
             for i, p in enumerate(results[:5]):
                 print(f"{i+1}. Player ID: {p['id']}")
                 print(f"   Est. Value: {p['estimated_value']:,} baht")
                 print(f"   Asking Price: {p['asking_price']:,} baht")
+                print(f"   Value Diff: {p['value_diff']:,} baht")
                 print(f"   Deadline: {p['deadline']}")
                 print(f"   Bids: {p['bids_count']} | Avg: {p['bids_avg']}")
                 print(f"   Link: https://www.pmanager.org/ver_jogador.asp?jog_id={p['id']}")
@@ -58,8 +59,8 @@ def main():
                 
             # Optional: Save to CSV
             df = pd.DataFrame(results)
-            df.to_csv("transfer_targets.csv", index=False)
-            print("Saved all results to transfer_targets.csv")
+            df.to_csv("transfer_targets_high_quality.csv", index=False)
+            print("Saved all results to transfer_targets_high_quality.csv")
             
         else:
             print("Skipping login (no credentials or default credentials)")

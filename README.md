@@ -31,14 +31,21 @@ A web scraper for finding high-value players on the Planetarium Manager transfer
      ```
 
 ## Usage
+There are two scraping strategies available:
 
-Run the scraper:
+### 1. Low Price Scraper (Original)
+*Target: Age < 31, Price <= 20,000*
 ```bash
-python main.py
-./venv/Scripts/python main.py
+./venv/Scripts/python main_low_price.py
 ```
+Results saved to: `transfer_targets.csv`
 
-Results are saved to `transfer_targets.csv` and the Top 5 deals are printed to the console.
+### 2. High Quality Scraper
+*Target: Age < 31, Quality > Very Good (7)*
+```bash
+./venv/Scripts/python main_high_quality.py
+```
+Results saved to: `transfer_targets_high_quality.csv`
 
 ## Output Format
 The CSV contains:
