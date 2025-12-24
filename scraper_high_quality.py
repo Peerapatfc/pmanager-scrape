@@ -86,7 +86,7 @@ class PMScraper:
         current_url = base_search_url
         page_num = 1
         all_players = []
-        max_pages = 20 # Safety limit
+        max_pages = 100 # Safety limit
         
         while page_num <= max_pages:
             print(f"Scraping page {page_num}...")
