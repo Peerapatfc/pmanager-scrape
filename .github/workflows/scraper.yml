@@ -1,0 +1,77 @@
+name: Run PManager Scraper
+
+on:
+  # Run on schedule (daily at 9:00 AM Thailand time = 2:00 AM UTC)
+  schedule:
+    - cron: '0 2 * * *'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      scraper_type:
+        description: 'Which scraper to run'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - high_quality
+          - low_price
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Install Playwright browsers
+        run: |
+          playwright install chromium
+          playwright install-deps chromium
+      
+      - name: Create .env file
+        run: |
+          echo "PM_USERNAME=${{ secrets.PM_USERNAME }}" >> .env
+          echo "PM_PASSWORD=${{ secrets.PM_PASSWORD }}" >> .env
+      
+      - name: Create Google credentials file
+        run: |
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+      
+      - name: Run High Quality Scraper
+        if: ${{ github.event.inputs.scraper_type == 'high_quality' || github.event.inputs.scraper_type == 'both' || github.event_name == 'schedule' }}
+        run: |
+          python main_high_quality.py
+        env:
+          PM_USERNAME: ${{ secrets.PM_USERNAME }}
+          PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
+      
+      - name: Run Low Price Scraper
+        if: ${{ github.event.inputs.scraper_type == 'low_price' || github.event.inputs.scraper_type == 'both' || github.event_name == 'schedule' }}
+        run: |
+          python main_low_price.py
+        env:
+          PM_USERNAME: ${{ secrets.PM_USERNAME }}
+          PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
+      
+      - name: Upload CSV artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraper-results-${{ github.run_number }}
+          path: |
+            transfer_targets*.csv
+          retention-days: 30

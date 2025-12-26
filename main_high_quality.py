@@ -66,7 +66,9 @@ def main():
     print("Starting High Quality scraper...")
     scraper = PMScraper()
     try:
-        scraper.start(headless=False) 
+        # Use headless mode in CI environment (GitHub Actions)
+        is_ci = os.getenv("CI", "false").lower() == "true"
+        scraper.start(headless=is_ci) 
         if username and password and username != "your_username":
             scraper.login(username, password)
             
