@@ -21,3 +21,5 @@ Thumbs.db
 
 # Scraper output/data (optional - uncomment if you want to ignore CSVs)
 *.csv
+
+credentials.json
