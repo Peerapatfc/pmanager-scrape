@@ -5,17 +5,13 @@ A web scraper for finding high-value players on the Planetarium Manager transfer
 ## Features
 
 - **Automated Authentication**: Logs into the game securely.
-- **Advanced Filtering**: Finds players with strict criteria (e.g., Age < 31, Quality > Very Good, Asking Price < 1M).
-    - *Note: Uses a verified direct URL to bypass some website filter issues.*
-- **Deep Extraction**: Visits individual negotiation pages to extract:
-    - Estimated Transfer Value
-    - Asking Price (Strictly verified < 1M)
-    - Transfer Deadline
-    - Bids Count & Average Bid (Scout)
-- **ROI Calculation**: Automatically calculates Return on Investment for each player.
-- **Auto-Pagination**: Scrapes all available result pages.
-- **Google Sheets Integration**: Uploads results directly to Google Sheets.
-- **GitHub Actions**: Automated daily scraping at 7:30 AM Thailand time.
+- **Advanced Filtering**: Finds players with strict criteria.
+- **Deep Extraction**: Visits individual negotiation pages to extract detailed attributes.
+- **Dynamic Skill Extraction**: Automatically scrapes all skills (Primary, Secondary, Physical, Tertiary) for any position.
+- **Opponent Scout**: Scrapes entire squads given a team ID.
+- **Google Sheets Integration**: Upserts data (updates existing, adds new) to specific tabs.
+- **Telegram Bot Control**: Trigger scrapers remotely via Telegram commands.
+- **GitHub Actions**: Automated scheduling and manual dispatch support.
 
 ## Setup
 
@@ -29,81 +25,79 @@ A web scraper for finding high-value players on the Planetarium Manager transfer
    ```
 3. **Configure Credentials**:
    - Rename `.env.example` to `.env`
-   - Add your login details:
+   - Add your details:
      ```
-     PM_USERNAME=your_email
-     PM_PASSWORD=your_password
-     TELEGRAM_BOT_TOKEN=your_bot_token
-     TELEGRAM_CHAT_ID=your_chat_id
-     GEMINI_API_KEY=your_gemini_key
+     PM_USERNAME=...
+     PM_PASSWORD=...
+     TELEGRAM_BOT_TOKEN=...
+     SCOUT_BOT_TOKEN=... (For dedicated scout bot)
+     TELEGRAM_CHAT_ID=...
+     GEMINI_API_KEY=...
+     GITHUB_TOKEN=... (For triggering workflows)
+     GITHUB_REPO=Peerapatfc/pmanager-scrape
      ```
-4. **Google Sheets Setup** (Optional):
-   - Create a Google Cloud project and enable Sheets API
-   - Create a service account and download `credentials.json`
-   - Share your spreadsheet with the service account email
+4. **Google Sheets Setup**:
+   - Place `credentials.json` in the root.
 
 ### GitHub Actions (Automated)
 
-The scraper can run automatically via GitHub Actions:
-
-1. **Add Repository Secrets** (Settings → Secrets → Actions):
-   | Secret Name | Value |
-   |-------------|-------|
-   | `PM_USERNAME` | Your pmanager.org username |
-   | `PM_PASSWORD` | Your pmanager.org password |
-   | `GOOGLE_CREDENTIALS_JSON` | Full contents of `credentials.json` |
-   | `GEMINI_API_KEY` | Google Gemini API Key |
-   | `TELEGRAM_BOT_TOKEN` | Telegram Bot Token |
-   | `TELEGRAM_CHAT_ID` | Telegram Chat ID |
-
-2. **Schedule**: Runs **twice daily** at 7:30 AM & 7:30 PM Thailand time (0:30 & 12:30 UTC)
-
-3. **Manual Trigger**: Go to Actions → Run PManager Scraper → Run workflow
+1. **Secrets Needed**: `PM_USERNAME`, `PM_PASSWORD`, `GOOGLE_CREDENTIALS_JSON`, `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
+2. **Schedule**: Runs daily at 7:30 AM/PM Thailand.
 
 ## Usage
 
-There are two scraping strategies available:
+### 🕵️‍♂️ Scrapers
 
-### 1. Low Price Scraper
-*Target: Age < 31, Price <= 20,000*
+**1. Low Price Scraper** (Targets < 20k)
 ```bash
 python main_low_price.py
 ```
-Results saved to: `transfer_targets.csv`
 
-### 2. High Quality Scraper
-*Target: Age < 31, Quality > Very Good (7)*
+**2. High Quality Scraper** (Targets Quality > 7)
 ```bash
 python main_high_quality.py
 ```
-Results saved to: `transfer_targets_high_quality.csv`
 
-### 3. Young Potential Scraper
-*Target: Age < 20, Potential (Progression) > Good*
+**3. Young Potential Scraper** (Targets Age < 20, Potential > Good)
 ```bash
 python main_young_potential.py
 ```
-Results saved to: `transfer_targets_young_potential.csv`
 
-## Output Format
+**4. Team Info Scraper** (Extracts Finances/Stadium)
+```bash
+python main_team_info.py
+```
 
-The CSV contains:
-- Player ID
-- Estimated Value
-- Asking Price
-- Buy Price (max of Asking Price and Bids Average)
-- Value Difference
-- ROI (Return on Investment %)
-- Deadline
-- Bids Count
-- Average Bid
+**5. All Transfer Scraper** (Deep Scan of "All" list)
+```bash
+python main_all_transfer.py
+```
 
-## Google Sheets
+**6. Opponent Scout** (Scrape specific team)
+```bash
+python main_opponent_scout.py "https://www.pmanager.org/ver_equipa.asp?equipa=35126"
+# OR
+python main_opponent_scout.py 35126
+```
 
-Results are automatically uploaded to:
-- **High Quality**: "High Quality" sheet tab
-- **Low Price**: "Low Price" sheet tab
-- **Young Potential**: "Young Potential" sheet tab
+### 🤖 Telegram Bots
+
+**General Bot** (`telegram_bot.py`)
+- Responds to `/scout <target>` by triggering the GitHub Action.
+
+**Scout Bot** (`telegram_scout_bot.py`)
+- Dedicated bot using `SCOUT_BOT_TOKEN`.
+- Listens for `/scout` or raw URLs.
+- Triggers `opponent_scout.yml` workflow.
+
+## Output
+
+Results are uploaded to **Google Sheets**:
+- **High Quality**: "High Quality" tab
+- **Low Price**: "Low Price" tab
+- **Young Potential**: "Young Potential" tab
+- **All Players**: "All Players" tab (Upsert Logic: Preserves history)
+- **Team Info**: "Team Info" tab
 
 ## License
 
