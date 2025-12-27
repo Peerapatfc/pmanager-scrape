@@ -11,13 +11,14 @@ on:
       scraper_type:
         description: 'Which scraper to run'
         required: true
-        default: 'both'
+        default: 'all'
         type: choice
         options:
-          - both
+          - all
           - high_quality
           - low_price
           - young_potential
+          - team_info
 
 jobs:
   scrape:
@@ -54,7 +55,7 @@ jobs:
           echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
       
       - name: Run High Quality Scraper
-        if: ${{ github.event.inputs.scraper_type == 'high_quality' || github.event.inputs.scraper_type == 'both' || github.event_name == 'schedule' }}
+        if: ${{ github.event.inputs.scraper_type == 'high_quality' || github.event.inputs.scraper_type == 'all' || github.event_name == 'schedule' }}
         run: |
           python main_high_quality.py
         env:
@@ -62,7 +63,7 @@ jobs:
           PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
       
       - name: Run Low Price Scraper
-        if: ${{ github.event.inputs.scraper_type == 'low_price' || github.event.inputs.scraper_type == 'both' || github.event_name == 'schedule' }}
+        if: ${{ github.event.inputs.scraper_type == 'low_price' || github.event.inputs.scraper_type == 'all' || github.event_name == 'schedule' }}
         run: |
           python main_low_price.py
         env:
@@ -70,9 +71,17 @@ jobs:
           PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
       
       - name: Run Young Potential Scraper
-        if: ${{ github.event.inputs.scraper_type == 'young_potential' || github.event.inputs.scraper_type == 'both' || github.event_name == 'schedule' }}
+        if: ${{ github.event.inputs.scraper_type == 'young_potential' || github.event.inputs.scraper_type == 'all' || github.event_name == 'schedule' }}
         run: |
           python main_young_potential.py
+        env:
+          PM_USERNAME: ${{ secrets.PM_USERNAME }}
+          PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
+      
+      - name: Run Team Info Scraper
+        if: ${{ github.event.inputs.scraper_type == 'team_info' || github.event.inputs.scraper_type == 'all' || github.event_name == 'schedule' }}
+        run: |
+          python main_team_info.py
         env:
           PM_USERNAME: ${{ secrets.PM_USERNAME }}
           PM_PASSWORD: ${{ secrets.PM_PASSWORD }}

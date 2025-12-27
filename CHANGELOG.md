@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - **Team Info Scraper**: Added `main_team_info.py` to extract team stats/financials and **upload to Google Sheets**
 - **AI Upgrade**: AI now considers **Available Funds** from Team Info sheet to suggest affordable comparisons
+- **Workflow**: Renamed `both` option to `all` and added **Team Info Scraper** to the automated schedule
 - **AI Strategy**: Updated AI prompt to "Ruthless Day Trader" focusing on immediate profit flips
 - **Schedule**: Updated GitHub Actions to run **twice daily** (07:30 AM & 07:30 PM Thailand Time)
 - **Environment**: Added AI credential variables to `.env.example`
