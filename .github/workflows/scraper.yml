@@ -19,7 +19,8 @@ on:
           - low_price
           - young_potential
           - team_info
-          - all
+          - all_transfer  # <--- Added new option here
+          
 
 jobs:
   scrape:
@@ -78,7 +79,17 @@ jobs:
         env:
           PM_USERNAME: ${{ secrets.PM_USERNAME }}
           PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
-      
+
+      # --- NEW STEP ADDED BELOW ---
+      - name: Run All Transfer Scraper
+        if: ${{ github.event.inputs.scraper_type == 'all_transfer' || github.event.inputs.scraper_type == 'all' || github.event_name == 'schedule' }}
+        run: |
+          python main_all_transfer.py
+        env:
+          PM_USERNAME: ${{ secrets.PM_USERNAME }}
+          PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
+      # ----------------------------
+
       - name: Run Team Info Scraper
         if: ${{ github.event.inputs.scraper_type == 'team_info' || github.event.inputs.scraper_type == 'all' || github.event_name == 'schedule' }}
         run: |
