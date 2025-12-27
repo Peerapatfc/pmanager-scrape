@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from dotenv import load_dotenv
 from scraper_low_price import PMScraper
 import pandas as pd
@@ -121,6 +122,11 @@ def main():
                 
             # Optional: Save to CSV
             df = pd.DataFrame(results)
+
+            # Add Last Updated Timestamp
+            thailand_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+            df["last_updated"] = thailand_time
+
             df.to_csv("transfer_targets.csv", index=False)
             print("Saved all results to transfer_targets.csv")
             
