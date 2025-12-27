@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.1] - 2025-12-27
+
+### Changed
+- **Team Info Scraper**: Added `main_team_info.py` to extract team stats/financials and **upload to Google Sheets**
+- **AI Strategy**: Updated AI prompt to "Ruthless Day Trader" focusing on immediate profit flips
+- **Schedule**: Updated GitHub Actions to run **twice daily** (07:30 AM & 07:30 PM Thailand Time)
+- **Environment**: Added AI credential variables to `.env.example`
+
 ## [1.2.0] - 2025-12-27
 
 ### Added
