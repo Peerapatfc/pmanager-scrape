@@ -4,57 +4,9 @@ import gspread
 import google.generativeai as genai
 from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
+from datetime import datetime, timedelta # <--- Added datetime
 
-def get_sheet_data(sheet_name):
-    """Fetch top 5 rows from a specific sheet"""
-    try:
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
-        ]
-        creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
-        client = gspread.authorize(creds)
-        spreadsheet = client.open_by_key("1F8FWV9w1gNAGbGDd6RG929dx2jAcM-N6p2ve9fOwSfU")
-        worksheet = spreadsheet.worksheet(sheet_name)
-        
-        # Get all values
-        data = worksheet.get_all_records()
-        
-        # Return all data (Gemini Flash has large context window)
-        return data
-    except Exception as e:
-        print(f"Error reading {sheet_name}: {e}")
-        return []
-
-def send_telegram_message(message):
-    """Send message to Telegram"""
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    
-    if not bot_token or not chat_id:
-        print("Telegram credentials not found")
-        return
-    
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    
-    response = requests.post(url, json=payload)
-    if response.status_code == 200:
-        print("Message sent to Telegram (Markdown)!")
-    else:
-        print(f"Failed to send Markdown message: {response.text}")
-        print("Retrying as plain text...")
-        # Fallback to plain text
-        del payload["parse_mode"]
-        response = requests.post(url, json=payload)
-        if response.status_code == 200:
-             print("Message sent to Telegram (Plain Text)!")
-        else:
-             print(f"Failed to send Telegram message (Plain Text): {response.text}")
+# ... [Keep your existing get_sheet_data and send_telegram_message functions exactly as they are] ...
 
 def main():
     load_dotenv()
@@ -77,20 +29,25 @@ def main():
     team_info = get_sheet_data("Team Info")
     current_funds = "Unknown"
     if team_info:
-        # Get last row (latest data)
         current_funds = team_info[-1].get("Available Funds", "Unknown")
+
+    # Get Current Time for the AI to reference
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     # Construct Prompt
     prompt = f"""
     You are a ruthless Day Trader in the Planetarium Manager transfer market. 
-    Your ONLY goal is IMMEDIATE PROFIT. You do not care about player quality, age, or potential unless it helps resell value.
+    Your ONLY goal is IMMEDIATE PROFIT. 
     
     💰 **CURRENT TEAM FUNDS: {current_funds}** 💰
+    ⏰ **CURRENT DATE/TIME: {current_time}** ⏰
     
-    Analyze the following transfer targets and LIST THE TOP 5 FLIPS from EACH category.
-    Please consider my current funds. If a flip is too expensive, only recommend it if the profit margin is insane (I can sell players to buy it).
+    **STRICT CONSTRAINT: DEADLINE WITHIN 24 HOURS**
+    You must ONLY recommend players whose transfer deadline is LESS THAN 24 HOURS from the current time provided above.
+    - If the player's deadline is more than 24 hours away, IGNORE THEM completely, regardless of profit.
+    - If a specific deadline column isn't clear, look for "Time Left", "Deadline", or "Ends" fields.
     
-    Data provided is the COMPLETE LIST of available players sorted by Value Difference.
+    Analyze the following transfer targets and LIST THE TOP 5 FLIPS from EACH category that meet the time constraint.
     
     Category 1: High Quality (High stakes flips)
     {high_quality}
@@ -104,11 +61,12 @@ def main():
     Please output a Telegram message in Markdown format.
     Structure:
     
-    💸 *Day Trade Opportunities (Top List)* 💸
+    💸 *Day Trade Opportunities (Expiring < 24h)* 💸
     
     💰 *High Value Flips*
     1. [Player Name/ID]
        📉 Buy: [Price] | 📈 Est: [Value] | 🤑 Profit: [Value Diff]
+       ⏱️ Ends: [Deadline/Time Left]
        💡 [Very short strategy note]
        🔗 [Link]
     ... (Select 5 best options)
@@ -116,6 +74,7 @@ def main():
     ⚡ *Quick Budget Flips*
     1. [Player Name/ID]
        📉 Buy: [Price] | 📈 Est: [Value] | 🤑 Profit: [Value Diff]
+       ⏱️ Ends: [Deadline/Time Left]
        💡 [Very short strategy note]
        🔗 [Link]
     ... (Select 5 best options)
@@ -123,11 +82,12 @@ def main():
     💎 *High Margin Speculation* (Young Potential)
     1. [Player Name/ID]
        📉 Buy: [Price] | 📈 Est: [Value] | 🤑 Profit: [Value Diff]
+       ⏱️ Ends: [Deadline/Time Left]
        💡 [Very short strategy note]
        🔗 [Link]
     ... (Select 5 best options)
     
-    ⚠️ *Note:* Buy Price = max(Asking Price, Bids Avg). Profit is estimated.
+    ⚠️ *Note:* Buy Price = max(Asking Price, Bids Avg). Profit is estimated. Only showing auctions ending soon.
     
     IMPORTANT: Format the [Link] exactly as: https://www.pmanager.org/comprar_jog_lista.asp?jg_id=[Player_ID]
     """
