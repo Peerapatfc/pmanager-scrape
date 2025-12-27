@@ -65,12 +65,22 @@ def main():
     low_price = get_sheet_data("Low Price")
     young_potential = get_sheet_data("Young Potential")
     
+    # Get Team Funds
+    team_info = get_sheet_data("Team Info")
+    current_funds = "Unknown"
+    if team_info:
+        # Get last row (latest data)
+        current_funds = team_info[-1].get("Available Funds", "Unknown")
+    
     # Construct Prompt
     prompt = f"""
     You are a ruthless Day Trader in the Planetarium Manager transfer market. 
     Your ONLY goal is IMMEDIATE PROFIT. You do not care about player quality, age, or potential unless it helps resell value.
     
+    💰 **CURRENT TEAM FUNDS: {current_funds}** 💰
+    
     Analyze the following transfer targets and LIST THE TOP 5 FLIPS from EACH category.
+    Please consider my current funds. If a flip is too expensive, only recommend it if the profit margin is insane (I can sell players to buy it).
     
     Data provided is the COMPLETE LIST of available players sorted by Value Difference.
     
