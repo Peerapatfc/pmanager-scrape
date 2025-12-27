@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - **Team Info Scraper**: Added `main_team_info.py` to extract team stats/financials and **upload to Google Sheets**
+- **Opponent Scout**: Added `main_opponent_scout.py` to scrape an entire opponent's squad by Team URL/ID and add them to the "All Players" sheet
 - **All Transfer Scraper**: Added `scraper_all_transfer.py` to scrape ALL players with dynamic skills and **upsert logic** (updates existing players, adds new ones, keeps history)
 - **AI Upgrade**: AI now considers **Available Funds** from Team Info sheet to suggest affordable comparisons
 - **Workflow**: Renamed `both` option to `all` and added **Team Info Scraper** to the automated schedule
