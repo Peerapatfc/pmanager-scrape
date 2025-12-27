@@ -49,8 +49,10 @@ jobs:
           echo "PM_PASSWORD=${{ secrets.PM_PASSWORD }}" >> .env
       
       - name: Create Google credentials file
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
         run: |
-          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+          echo "$GOOGLE_CREDENTIALS" > credentials.json
       
       - name: Run High Quality Scraper
         if: ${{ github.event.inputs.scraper_type == 'high_quality' || github.event.inputs.scraper_type == 'both' || github.event_name == 'schedule' }}
