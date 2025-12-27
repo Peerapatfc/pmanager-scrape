@@ -30,7 +30,7 @@ def main():
     # Construct URL if only ID is given
     if "pmanager.org" not in input_arg:
         if input_arg.isdigit():
-            team_url = f"https://www.pmanager.org/ver_equipa.asp?equipa={input_arg}"
+            team_url = f"https://www.pmanager.org/ver_equipa.asp?equipa={input_arg}&vjog=1"
         else:
             print("Invalid input. Please provide a full URL or a numeric Team ID.")
             return

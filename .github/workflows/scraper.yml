@@ -19,13 +19,7 @@ on:
           - low_price
           - young_potential
           - team_info
-          - opponent_scout
           - all
-      
-      scout_target:
-        description: 'Team URL or ID (Only for Opponent Scout)'
-        required: false
-        default: ''
 
 jobs:
   scrape:
@@ -89,14 +83,6 @@ jobs:
         if: ${{ github.event.inputs.scraper_type == 'team_info' || github.event.inputs.scraper_type == 'all' || github.event_name == 'schedule' }}
         run: |
           python main_team_info.py
-        env:
-          PM_USERNAME: ${{ secrets.PM_USERNAME }}
-          PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
-
-      - name: Run Opponent Scout
-        if: ${{ github.event.inputs.scraper_type == 'opponent_scout' }}
-        run: |
-          python main_opponent_scout.py "${{ github.event.inputs.scout_target }}"
         env:
           PM_USERNAME: ${{ secrets.PM_USERNAME }}
           PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
