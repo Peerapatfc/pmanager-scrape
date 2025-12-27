@@ -72,6 +72,13 @@ python main_high_quality.py
 ```
 Results saved to: `transfer_targets_high_quality.csv`
 
+### 3. Young Potential Scraper
+*Target: Age < 20, Potential (Progression) > Good*
+```bash
+python main_young_potential.py
+```
+Results saved to: `transfer_targets_young_potential.csv`
+
 ## Output Format
 
 The CSV contains:
@@ -90,6 +97,7 @@ The CSV contains:
 Results are automatically uploaded to:
 - **High Quality**: "High Quality" sheet tab
 - **Low Price**: "Low Price" sheet tab
+- **Young Potential**: "Young Potential" sheet tab
 
 ## License
 

@@ -17,6 +17,7 @@ on:
           - both
           - high_quality
           - low_price
+          - young_potential
 
 jobs:
   scrape:
@@ -64,6 +65,14 @@ jobs:
         if: ${{ github.event.inputs.scraper_type == 'low_price' || github.event.inputs.scraper_type == 'both' || github.event_name == 'schedule' }}
         run: |
           python main_low_price.py
+        env:
+          PM_USERNAME: ${{ secrets.PM_USERNAME }}
+          PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
+      
+      - name: Run Young Potential Scraper
+        if: ${{ github.event.inputs.scraper_type == 'young_potential' || github.event.inputs.scraper_type == 'both' || github.event_name == 'schedule' }}
+        run: |
+          python main_young_potential.py
         env:
           PM_USERNAME: ${{ secrets.PM_USERNAME }}
           PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
