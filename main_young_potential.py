@@ -97,12 +97,12 @@ def main():
                 print(f"[{i+1}/{len(player_ids)}] ID: {pid} | Est: {est_val:,} | Buy: {buy_price:,} | Diff: {value_diff:,} | ROI: {roi:.1f}%")
                 results.append(data)
                 
-            # 3. Sort by ROI (Descending)
-            results.sort(key=lambda x: x["roi"], reverse=True)
+            # 3. Sort by Value Diff (Descending)
+            results.sort(key=lambda x: x["value_diff"], reverse=True)
             
             # 4. List Top 5
             print("\n" + "="*70)
-            print("TOP 5 PLAYERS BY ROI (Young Potential)")
+            print("TOP 5 PLAYERS BY VALUE DIFF (Young Potential)")
             print("="*70)
             
             for i, p in enumerate(results[:5]):

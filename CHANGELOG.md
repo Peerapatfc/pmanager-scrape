@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added `gspread` and `google-auth` to requirements.txt
 
 ### Changed
+- **Sorting Logic**: Changed result sorting from ROI to **Value Difference** (Descending)
+- **Timestamp**: `last_updated` column now uses Thailand Time (UTC+7) instead of UTC
 - Updated README with GitHub Actions setup instructions
 - Updated README with Google Sheets integration documentation
 

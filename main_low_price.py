@@ -101,12 +101,12 @@ def main():
                 if buy_price < 1000000:
                     results.append(data)
                 
-            # 3. Sort by ROI (Descending)
-            results.sort(key=lambda x: x["roi"], reverse=True)
+            # 3. Sort by Value Diff (Descending)
+            results.sort(key=lambda x: x["value_diff"], reverse=True)
             
             # 4. List Top 5
             print("\n" + "="*70)
-            print("TOP 5 PLAYERS BY ROI (Asking Price < 1M Verified)")
+            print("TOP 5 PLAYERS BY VALUE DIFF (Asking Price < 1M Verified)")
             print("="*70)
             
             for i, p in enumerate(results[:5]):
