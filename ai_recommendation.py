@@ -44,9 +44,17 @@ def send_telegram_message(message):
     
     response = requests.post(url, json=payload)
     if response.status_code == 200:
-        print("Message sent to Telegram!")
+        print("Message sent to Telegram (Markdown)!")
     else:
-        print(f"Failed to send Telegram message: {response.text}")
+        print(f"Failed to send Markdown message: {response.text}")
+        print("Retrying as plain text...")
+        # Fallback to plain text
+        del payload["parse_mode"]
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+             print("Message sent to Telegram (Plain Text)!")
+        else:
+             print(f"Failed to send Telegram message (Plain Text): {response.text}")
 
 def main():
     load_dotenv()
