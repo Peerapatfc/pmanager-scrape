@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Headless Mode Detection**: Scrapers automatically run in headless mode when in CI environment
 - **Last Updated Timestamp**: Added `last_updated` column to CSV and Google Sheets output
 - **Young Potential Scraper**: Added new scraper for players < 20 years old with high potential (> Good)
+- **AI Transfer Assistant**: Added `ai_recommendation.py` to analyze results with Google Gemini and send daily "Best Deal" picks to Telegram
+- Added `.env` support for Telegram and Gemini credentials
 - Added `gspread` and `google-auth` to requirements.txt
 
 ### Changed

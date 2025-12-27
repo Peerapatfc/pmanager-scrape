@@ -33,6 +33,9 @@ A web scraper for finding high-value players on the Planetarium Manager transfer
      ```
      PM_USERNAME=your_email
      PM_PASSWORD=your_password
+     TELEGRAM_BOT_TOKEN=your_bot_token
+     TELEGRAM_CHAT_ID=your_chat_id
+     GEMINI_API_KEY=your_gemini_key
      ```
 4. **Google Sheets Setup** (Optional):
    - Create a Google Cloud project and enable Sheets API
@@ -49,6 +52,9 @@ The scraper can run automatically via GitHub Actions:
    | `PM_USERNAME` | Your pmanager.org username |
    | `PM_PASSWORD` | Your pmanager.org password |
    | `GOOGLE_CREDENTIALS_JSON` | Full contents of `credentials.json` |
+   | `GEMINI_API_KEY` | Google Gemini API Key |
+   | `TELEGRAM_BOT_TOKEN` | Telegram Bot Token |
+   | `TELEGRAM_CHAT_ID` | Telegram Chat ID |
 
 2. **Schedule**: Runs daily at 7:30 AM Thailand time (0:30 UTC)
 
