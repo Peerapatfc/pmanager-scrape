@@ -20,8 +20,8 @@ def get_sheet_data(sheet_name):
         # Get all values
         data = worksheet.get_all_records()
         
-        # Return top 5 (assuming they are already sorted by the scraper)
-        return data[:5]
+        # Return all data (Gemini Flash has large context window)
+        return data
     except Exception as e:
         print(f"Error reading {sheet_name}: {e}")
         return []
@@ -70,9 +70,9 @@ def main():
     You are a ruthless Day Trader in the Planetarium Manager transfer market. 
     Your ONLY goal is IMMEDIATE PROFIT. You do not care about player quality, age, or potential unless it helps resell value.
     
-    Analyze the following transfer targets and pick the SINGLE BEST FLIP from EACH category.
+    Analyze the following transfer targets and LIST THE TOP 5 FLIPS from EACH category.
     
-    Data provided is the top 5 players sorted by Value Difference (Estimated Value - Buy Price).
+    Data provided is the COMPLETE LIST of available players sorted by Value Difference.
     
     Category 1: High Quality (High stakes flips)
     {high_quality}
@@ -86,30 +86,32 @@ def main():
     Please output a Telegram message in Markdown format.
     Structure:
     
-    💸 *Day Trade Opportunities* 💸
+    💸 *Day Trade Opportunities (Top List)* 💸
     
-    � *Best High Value Flip*
-    [Player Name/ID]
-    � Buy: [Price] | 📈 Est: [Value]
-    🤑 *Profit:* [Value Diff] | 🚀 *ROI:* [ROI]%
-    💡 *Strategy:* [1 sentence on why this is a safe/good flip]
-    🔗 [Link]
+    💰 *High Value Flips*
+    1. [Player Name/ID]
+       📉 Buy: [Price] | 📈 Est: [Value] | 🤑 Profit: [Value Diff]
+       💡 [Very short strategy note]
+       🔗 [Link]
+    ... (Select 5 best options)
     
-    ⚡ *Quick Budget Flip*
-    [Player Name/ID]
-    � Buy: [Price] | 📈 Est: [Value]
-    🤑 *Profit:* [Value Diff] | 🚀 *ROI:* [ROI]%
-    💡 *Strategy:* [1 sentence on profit margin]
-    🔗 [Link]
+    ⚡ *Quick Budget Flips*
+    1. [Player Name/ID]
+       📉 Buy: [Price] | 📈 Est: [Value] | 🤑 Profit: [Value Diff]
+       💡 [Very short strategy note]
+       🔗 [Link]
+    ... (Select 5 best options)
     
     💎 *High Margin Speculation* (Young Potential)
-    [Player Name/ID]
-    � Buy: [Price] | 📈 Est: [Value]
-    🤑 *Profit:* [Value Diff] | 🚀 *ROI:* [ROI]%
-    💡 *Strategy:* [1 sentence on resale value]
-    🔗 [Link]
+    1. [Player Name/ID]
+       📉 Buy: [Price] | 📈 Est: [Value] | 🤑 Profit: [Value Diff]
+       💡 [Very short strategy note]
+       🔗 [Link]
+    ... (Select 5 best options)
     
     ⚠️ *Note:* Buy Price = max(Asking Price, Bids Avg). Profit is estimated.
+    
+    IMPORTANT: Format the [Link] exactly as: https://www.pmanager.org/comprar_jog_lista.asp?jg_id=[Player_ID]
     """
     
     try:
