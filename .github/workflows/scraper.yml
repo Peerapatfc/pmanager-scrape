@@ -1,9 +1,9 @@
 name: Run PManager Scraper
 
 on:
-  # Run on schedule (daily at 7:30 AM Thailand time = 0:30 AM UTC)
+  # Run on schedule (Twice daily at 7:30 AM & 7:30 PM Thailand time = 0:30 & 12:30 UTC)
   schedule:
-    - cron: '30 0 * * *'
+    - cron: '30 0,12 * * *'
   
   # Allow manual trigger
   workflow_dispatch:

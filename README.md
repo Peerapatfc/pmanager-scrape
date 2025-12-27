@@ -56,7 +56,7 @@ The scraper can run automatically via GitHub Actions:
    | `TELEGRAM_BOT_TOKEN` | Telegram Bot Token |
    | `TELEGRAM_CHAT_ID` | Telegram Chat ID |
 
-2. **Schedule**: Runs daily at 7:30 AM Thailand time (0:30 UTC)
+2. **Schedule**: Runs **twice daily** at 7:30 AM & 7:30 PM Thailand time (0:30 & 12:30 UTC)
 
 3. **Manual Trigger**: Go to Actions → Run PManager Scraper → Run workflow
 
