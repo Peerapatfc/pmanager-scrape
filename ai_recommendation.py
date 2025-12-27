@@ -1,12 +1,60 @@
-import os
+Import os
 import requests
 import gspread
 import google.generativeai as genai
 from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
-from datetime import datetime, timedelta # <--- Added datetime
 
-# ... [Keep your existing get_sheet_data and send_telegram_message functions exactly as they are] ...
+def get_sheet_data(sheet_name):
+    """Fetch top 5 rows from a specific sheet"""
+    try:
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
+        client = gspread.authorize(creds)
+        spreadsheet = client.open_by_key("1F8FWV9w1gNAGbGDd6RG929dx2jAcM-N6p2ve9fOwSfU")
+        worksheet = spreadsheet.worksheet(sheet_name)
+        
+        # Get all values
+        data = worksheet.get_all_records()
+        
+        # Return all data (Gemini Flash has large context window)
+        return data
+    except Exception as e:
+        print(f"Error reading {sheet_name}: {e}")
+        return []
+
+def send_telegram_message(message):
+    """Send message to Telegram"""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    
+    if not bot_token or not chat_id:
+        print("Telegram credentials not found")
+        return
+    
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+    
+    response = requests.post(url, json=payload)
+    if response.status_code == 200:
+        print("Message sent to Telegram (Markdown)!")
+    else:
+        print(f"Failed to send Markdown message: {response.text}")
+        print("Retrying as plain text...")
+        # Fallback to plain text
+        del payload["parse_mode"]
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+             print("Message sent to Telegram (Plain Text)!")
+        else:
+             print(f"Failed to send Telegram message (Plain Text): {response.text}")
 
 def main():
     load_dotenv()
