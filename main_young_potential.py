@@ -119,8 +119,9 @@ def main():
             # Optional: Save to CSV
             df = pd.DataFrame(results)
             
-            # Add Last Updated Timestamp
-            thailand_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+            # Add Last Updated Timestamp (Thailand Time = UTC+7)
+            from datetime import timedelta
+            thailand_time = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
             df["last_updated"] = thailand_time
             
             df.to_csv("transfer_targets_young_potential.csv", index=False)
