@@ -1,9 +1,9 @@
-name: Run PManager Scraper
+Name: Run PManager Scraper
 
 on:
-  # Run on schedule (Twice daily at 7:30 AM & 7:30 PM Thailand time = 0:30 & 12:30 UTC)
+  # Run on schedule (Twice daily at 8:45 AM & 8:45 PM Thailand time)
   schedule:
-    - cron: '30 0,12 * * *'
+    - cron: '45 1,13 * * *'
   
   # Allow manual trigger
   workflow_dispatch:
@@ -19,8 +19,7 @@ on:
           - low_price
           - young_potential
           - team_info
-          - all_transfer  # <--- Added new option here
-          
+          - all_transfer
 
 jobs:
   scrape:
@@ -80,7 +79,6 @@ jobs:
           PM_USERNAME: ${{ secrets.PM_USERNAME }}
           PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
 
-      # --- NEW STEP ADDED BELOW ---
       - name: Run All Transfer Scraper
         if: ${{ github.event.inputs.scraper_type == 'all_transfer' || github.event.inputs.scraper_type == 'all' || github.event_name == 'schedule' }}
         run: |
@@ -88,7 +86,6 @@ jobs:
         env:
           PM_USERNAME: ${{ secrets.PM_USERNAME }}
           PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
-      # ----------------------------
 
       - name: Run Team Info Scraper
         if: ${{ github.event.inputs.scraper_type == 'team_info' || github.event.inputs.scraper_type == 'all' || github.event_name == 'schedule' }}
@@ -99,7 +96,7 @@ jobs:
           PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
       
       - name: Run AI Recommendation
-        if: ${{ success() }}  # Only run if previous steps succeeded
+        if: ${{ success() }}
         run: |
           python ai_recommendation.py
         env:
