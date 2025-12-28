@@ -81,7 +81,7 @@ def main():
     except:
         pass # If sort fails, just pass as is
 
-    # Top 50 candidates to let AI choose the best 15 fitting the criteria
+    # Top 50 candidates to let AI choose the best 10 fitting the criteria
     candidates = transfer_data[:50]
 
     # Get Team Funds
