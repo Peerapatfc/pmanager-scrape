@@ -67,17 +67,31 @@ def main():
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-2.5-flash')
     
-    # Gather data
-    high_quality = get_sheet_data("High Quality")
-    low_price = get_sheet_data("Low Price")
-    young_potential = get_sheet_data("Young Potential")
+    # Gather data from Transfer Info (Single Source of Truth)
+    transfer_data = get_sheet_data("Transfer Info")
     
+    if not transfer_data:
+        print("No transfer data found.")
+        return
+
+    # Sort by Forecast Sell (Profit Potential) Descending to give AI the best candidates first
+    # (Assuming forecast_sell is the estimated net profit)
+    try:
+        transfer_data.sort(key=lambda x: int(x.get("forecast_sell", 0)) if isinstance(x.get("forecast_sell"), (int, float)) or str(x.get("forecast_sell")).replace("-","").isdigit() else 0, reverse=True)
+    except:
+        pass # If sort fails, just pass as is
+
+    # Top 50 candidates to let AI choose the best 15 fitting the criteria
+    candidates = transfer_data[:50]
+
     # Get Team Funds
     team_info = get_sheet_data("Team Info")
     current_funds = "Unknown"
     if team_info:
-        # Get last row (latest data)
-        current_funds = team_info[-1].get("Available Funds", "Unknown")
+        # Get last row (latest data) if row 2 exists
+        if len(team_info) >= 1:
+             row = team_info[0] # gspread get_all_records returns list of dicts. 0 is first data row.
+             current_funds = row.get("Available Funds", "Unknown")
 
     # Get Current Time for context
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -90,53 +104,34 @@ def main():
     💰 **CURRENT TEAM FUNDS: {current_funds}** 💰
     ⏰ **CURRENT DATE/TIME: {current_time}** ⏰
     
-    **STRICT CONSTRAINT: DEADLINE WITHIN 12 HOURS**
-    You must ONLY recommend players whose transfer deadline is LESS THAN 12 HOURS from the current time provided above.
-    - If the player's deadline is more than 12 hours away, IGNORE THEM completely, regardless of profit.
-    - If a deadline column is ambiguous, look for fields like "Time Left", "Deadline", "Ends", or "Hours Remaining".
-    - If the dataset has no deadline info, mention this limitation clearly in the output.
+    **YOUR MISSION:**
+    Select the **TOP 15 BEST TRADES** from the list below.
     
-    Analyze the following transfer targets and LIST THE TOP 5 FLIPS from EACH category that meet the time constraint.
+    **SELECTION CRITERIA:**
+    1.  **DEADLINE IS KING**: Must end within **12 HOURS**. Ignore anything later.
+    2.  **AFFORDABILITY**: `Buy Price` MUST be LESS than `Current Team Funds`. Don't recommend players I can't buy.
+    3.  **PROFITABILITY**: Prioritize high `Forecast Sell` (Estimated Net Profit).
     
-    Category 1: High Quality (High stakes flips)
-    {high_quality}
-    
-    Category 2: Low Price (Quick flips)
-    {low_price}
-    
-    Category 3: Young Potential (Speculative flips)
-    {young_potential}
+    **CANDIDATE LIST:**
+    {candidates}
     
     Please output a Telegram message in Markdown format.
     Structure:
     
-    💸 *Day Trade Opportunities (Expiring < 12h)* 💸
+    � *Top 15 Day Trade Signals (Expiring < 12h)* �
     
-    💰 *High Value Flips*
     1. [Player Name/ID]
-       📉 Buy: [Price] | 📈 Est: [Value] | 🤑 Profit: [Value Diff]
-       ⏱️ Ends: [Deadline/Time Left]
-       💡 [Very short strategy note]
+       📉 Buy: [Price] | 🔮 Forecast Sell: [Forecast Sell]
+       🤑 **Est. Profit: [Forecast Sell]**
+       ⏱️ Ends: [Deadline]
+       💡 [Strategy: Why is this a good flip?]
        🔗 [Link]
-    ... (Select 5 best options)
     
-    ⚡ *Quick Budget Flips*
-    1. [Player Name/ID]
-       📉 Buy: [Price] | 📈 Est: [Value] | 🤑 Profit: [Value Diff]
-       ⏱️ Ends: [Deadline/Time Left]
-       💡 [Very short strategy note]
-       🔗 [Link]
-    ... (Select 5 best options)
+    2. ...
+    ...
+    15. ...
     
-    💎 *High Margin Speculation* (Young Potential)
-    1. [Player Name/ID]
-       📉 Buy: [Price] | 📈 Est: [Value] | 🤑 Profit: [Value Diff]
-       ⏱️ Ends: [Deadline/Time Left]
-       💡 [Very short strategy note]
-       🔗 [Link]
-    ... (Select 5 best options)
-    
-    ⚠️ *Note:* Buy Price = max(Asking Price, Bids Avg). Profit is estimated. Only showing auctions ending soon.
+    ⚠️ *Note:* Buy Price must be within budget ({current_funds}). Profit is estimated.
     
     IMPORTANT: Format the [Link] exactly as: https://www.pmanager.org/comprar_jog_lista.asp?jg_id=[Player_ID]
     """

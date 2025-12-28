@@ -4,55 +4,47 @@ on:
   workflow_dispatch:
     inputs:
       scout_target:
-        description: 'Team URL or ID'
+        description: 'Team ID or URL to scout'
         required: true
-        default: ''
+        type: string
 
 jobs:
-  scout:
+  scout_opponent:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
-    
+    permissions:
+      contents: write
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      
-      - name: Install Playwright browsers
-        run: |
-          playwright install chromium
-          playwright install-deps chromium
-      
-      - name: Create .env file
-        run: |
-          echo "PM_USERNAME=${{ secrets.PM_USERNAME }}" >> .env
-          echo "PM_PASSWORD=${{ secrets.PM_PASSWORD }}" >> .env
-      
-      - name: Create Google credentials file
-        run: |
-          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
-      
-      - name: Run Opponent Scout
-        run: |
-          python main_opponent_scout.py "${{ github.event.inputs.scout_target }}"
-        env:
-          PM_USERNAME: ${{ secrets.PM_USERNAME }}
-          PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
-      
-      - name: Upload CSV artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: scout-results-${{ github.run_number }}
-          path: |
-            transfer_targets*.csv
-          retention-days: 7
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        playwright install chromium
+        playwright install-deps
+
+    - name: Create credentials.json
+      env:
+        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+      run: |
+        echo "$GOOGLE_CREDENTIALS" > credentials.json
+
+    - name: Create .env file
+      env:
+        PM_USERNAME: ${{ secrets.PM_USERNAME }}
+        PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
+        CI: "true"
+      run: |
+        echo "PM_USERNAME=$PM_USERNAME" >> .env
+        echo "PM_PASSWORD=$PM_PASSWORD" >> .env
+        echo "CI=true" >> .env
+
+    - name: Run Opponent Scout
+      run: python main_opponent_scout.py "${{ github.event.inputs.scout_target }}"

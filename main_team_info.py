@@ -57,8 +57,32 @@ def append_to_sheet(info_dict, spreadsheet_id, sheet_name):
             info_dict.get("fan_club_size", "N/A")
         ]
         
-        worksheet.append_row(row, value_input_option="USER_ENTERED")
-        print(f"✓ Appended to Google Sheets: {sheet_name}")
+        # Check if header exists
+        if worksheet.row_count < 1 or not worksheet.row_values(1):
+             header = [
+                "Date", "Team Name", "Manager", "Available Funds", "Financial Situation",
+                "Wages Sum", "Wage Roof", "Academy", "Players", "Age Average", 
+                "Players Value", "Team Reputation", "Division", "Fan Club"
+            ]
+             worksheet.append_row(header)
+
+        # UPDATE LOGIC: Replace Row 2 (or append if empty)
+        # We want to keep a single row of the LATEST data.
+        # Clearing from row 2 onwards is safer.
+        
+        # Batch update: Clear old data -> Update Row 2
+        worksheet.resize(rows=2) # Ensure at least 2 rows exist
+        # Update Row 2 specifically
+        range_start = "A2"
+        # gspread uses list of lists for update
+        worksheet.update([row], range_name=range_start, value_input_option="USER_ENTERED")
+        
+        # Optional: Clean up any extra rows if they existed before?
+        # resize(2) handles it mostly, but let's be sure.
+        # Actually, simpler approach: Clear sheet, Write Header, Write Row.
+        # But user might have custom formatting on header, so let's keep header.
+        
+        print(f"✓ Updated Team Info in Google Sheets: {sheet_name}")
         return True
         
     except Exception as e:

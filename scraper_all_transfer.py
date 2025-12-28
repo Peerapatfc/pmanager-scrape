@@ -38,26 +38,31 @@ class AllTransferScraper:
             print(f"Login failed: {e}")
             raise
 
-    def search_transfer_list(self):
-        """Search using the 'All Players' filter provided by user"""
-        print("Navigating to ALL players search...")
+    def search_transfer_list(self, search_url=None):
+        """
+        Search using a provided URL or the default 'All Players' filter.
+        search_url: Optional URL to start scraping from.
+        """
+        if search_url:
+            print(f"Navigating to Custom Search: {search_url}...")
+            current_url = search_url
+        else:
+            print("Navigating to ALL players search...")
+            # Default URL provided by user
+            current_url = (
+                "https://www.pmanager.org/procurar.asp?action=proc_jog&nome=&pos=0&nacional=-1&lado=-1"
+                "&idd_op=%3C&idd=Any&temp_op=%3C&temp=Any&expe_op=%3E%3D&expe=Any&con_op=%3C&con=Any"
+                "&pro_op=%3E&pro=Any&vel_op=%3E&vel=Any&forma_op=%3E&forma=Any&cab_op=%3E&cab=Any"
+                "&ord_op=%3C%3D&ord=Any&cul_op=%3E&cul=Any&pre_op=%3E&pre=Any&forca_op=%3E&forca=Any"
+                "&lesionado=Any&prog_op=%3E&prog=Any&tack_op=%3E&tack=Any&internacional=Any&passe_op=%3E&passe=Any"
+                "&pais=-1&rem_op=%3E&rem=Any&tec_op=%3E&tec=Any&jmaos_op=%3E&jmaos=Any&saidas_op=%3E&saidas=Any"
+                "&reflexos_op=%3E&reflexos=Any&agilidade_op=%3E&agilidade=Any&B1=Pesquisar&field=&pid=1"
+                "&sort=0&pv=1&qual_op=%3E&qual=Any&talento=Any"
+            )
         
-        # URL provided by user
-        base_search_url = (
-            "https://www.pmanager.org/procurar.asp?action=proc_jog&nome=&pos=0&nacional=-1&lado=-1"
-            "&idd_op=%3C&idd=Any&temp_op=%3C&temp=Any&expe_op=%3E%3D&expe=Any&con_op=%3C&con=Any"
-            "&pro_op=%3E&pro=Any&vel_op=%3E&vel=Any&forma_op=%3E&forma=Any&cab_op=%3E&cab=Any"
-            "&ord_op=%3C%3D&ord=Any&cul_op=%3E&cul=Any&pre_op=%3E&pre=Any&forca_op=%3E&forca=Any"
-            "&lesionado=Any&prog_op=%3E&prog=Any&tack_op=%3E&tack=Any&internacional=Any&passe_op=%3E&passe=Any"
-            "&pais=-1&rem_op=%3E&rem=Any&tec_op=%3E&tec=Any&jmaos_op=%3E&jmaos=Any&saidas_op=%3E&saidas=Any"
-            "&reflexos_op=%3E&reflexos=Any&agilidade_op=%3E&agilidade=Any&B1=Pesquisar&field=&pid=1"
-            "&sort=0&pv=1&qual_op=%3E&qual=Any&talento=Any"
-        )
-        
-        current_url = base_search_url
         page_num = 1
         all_players = []
-        max_pages = 150  # Limited to 2 pages for testing/performance as requested implicitly by "try to scrape"
+        max_pages = 3  # Limited pages per category to avoid timeout
         
         while page_num <= max_pages:
             print(f"Scraping page {page_num}...")
@@ -103,40 +108,95 @@ class AllTransferScraper:
         return unique_players
 
     def get_player_details(self, player_id):
-        """Visit player profile and extract detailed skills/attributes"""
-        url = f"{self.base_url}/ver_jogador.asp?jog_id={player_id}"
-        # print(f"  Scraping details for {player_id}...")
-        self.page.goto(url)
+        """Visit negotiation AND profile pages to extract comprehensive data"""
+        data = {"id": player_id, "url": f"{self.base_url}/ver_jogador.asp?jog_id={player_id}"}
+
+        # --- PART 1: Financials (Negotiation Page) ---
+        neg_url = f"{self.base_url}/comprar_jog_lista.asp?jg_id={player_id}"
+        self.page.goto(neg_url)
+        try:
+             self.page.wait_for_selector("body", timeout=3000)
+        except:
+             pass
         
+        soup_neg = BeautifulSoup(self.page.content(), 'html.parser')
+        
+        # Init financial keys
+        data["estimated_value"] = 0
+        data["asking_price"] = 0
+        data["deadline"] = "N/A"
+        data["bids_count"] = "0"
+        data["bids_avg"] = "N/A"
+
+        try:
+            # Est Value
+            label_est = soup_neg.find(string=re.compile("Estimated Transfer Value"))
+            if label_est:
+                parent = label_est.find_parent('td')
+                if parent:
+                    val_td = parent.find_next_sibling('td')
+                    if val_td:
+                        clean = re.sub(r'[^\d]', '', val_td.get_text(strip=True))
+                        if clean: data["estimated_value"] = int(clean)
+            
+            # Asking Price
+            label_ask = soup_neg.find(string=re.compile("Asking Price for Bid"))
+            if label_ask:
+                parent = label_ask.find_parent('td')
+                if parent:
+                    val_td = parent.find_next_sibling('td')
+                    if val_td:
+                        clean = re.sub(r'[^\d]', '', val_td.get_text(strip=True))
+                        if clean: data["asking_price"] = int(clean)
+
+            # Deadline
+            label_dead = soup_neg.find(string="Deadline")
+            if label_dead:
+                parent = label_dead.find_parent('td')
+                if parent:
+                    val_td = parent.find_next_sibling('td')
+                    if val_td: data["deadline"] = val_td.get_text(strip=True, separator=" ")
+            
+            # Bids
+            label_bids = soup_neg.find(string="Bids")
+            if label_bids:
+                parent = label_bids.find_parent('td')
+                if parent:
+                    val_td = parent.find_next_sibling('td')
+                    if val_td: data["bids_count"] = val_td.get_text(strip=True)
+            
+            label_avg = soup_neg.find(string="Bids Average (Scout)")
+            if label_avg:
+                parent = label_avg.find_parent('td')
+                if parent:
+                    val_td = parent.find_next_sibling('td')
+                    if val_td: data["bids_avg"] = val_td.get_text(strip=True)
+
+        except Exception as e:
+            print(f"Error scraping financials for {player_id}: {e}")
+
+        # --- PART 2: Skills (Profile Page) ---
+        profile_url = data["url"]
+        self.page.goto(profile_url)
         try:
            self.page.wait_for_selector("div#infos", timeout=3000)
         except:
            pass
         
-        content = self.page.content()
-        soup = BeautifulSoup(content, 'html.parser')
-        
-        data = {"id": player_id, "url": url}
-        
-        # --- 1. General Info ---
-        # Helper to find text in team_players class next to label
+        soup = BeautifulSoup(self.page.content(), 'html.parser')
+
+        # Helper to find general info
         def get_general_info(label):
-            # Try to find 'b' tag with label
             b_tag = soup.find('b', string=label)
             if b_tag:
-                 # Usually the value is in a sibling td with class 'team_players'
-                 # Structure: <td align=right><b>Label</b></td> <td>..</td> <td class=team_players>Value</td>
                  parent = b_tag.find_parent('td')
                  if parent:
                       value_td = parent.find_next_sibling('td', class_='team_players')
-                      if value_td:
-                          return value_td.get_text(strip=True)
-                      # Sometimes there's a spacer td in between
+                      if value_td: return value_td.get_text(strip=True)
                       next_td = parent.find_next_sibling('td')
                       if next_td and not next_td.get_text(strip=True):
                            value_td = next_td.find_next_sibling('td')
-                           if value_td:
-                               return value_td.get_text(strip=True)
+                           if value_td: return value_td.get_text(strip=True)
             return "N/A"
 
         data["name"] = soup.find('font', size="+1").get_text(strip=True) if soup.find('font', size="+1") else "N/A"
@@ -144,28 +204,12 @@ class AllTransferScraper:
         data["age"] = get_general_info("Age").replace("Years", "").strip()
         data["nationality"] = get_general_info("Nationality")
         
-        # --- 2. Skills (Dynamic) ---
-        # We look for tables inside divs 'principais', 'terciarios' (some might be hidden but BeautifulSoup sees them)
-        # Structure: <td class="list1" or "list2" align="left"><b>SkillName</b></td> ... <td align="center">Value</td>
-        
-        skill_count = 0
-        
-        # Find all tds that might contain skill names (bold text inside list1/list2)
-        # We search for td with class list1 or list2
+        # Skill Extraction
         potential_skill_rows = soup.find_all('td', class_=['list1', 'list2'])
-        
         for td in potential_skill_rows:
             b_tag = td.find('b')
             if b_tag:
                 skill_name = b_tag.get_text(strip=True)
-                
-                # Filter out non-skill labels if necessary (e.g., "Health", "Fitness" are also in this format)
-                # But we actually want them too! user asked for "player data".
-                
-                # The value is usually in the next 'td' with align='center' that contains a number
-                # Or simply the next sibling td might be a bar, then next is value.
-                
-                # Check next siblings
                 siblings = td.find_next_siblings('td')
                 skill_value = None
                 
@@ -174,43 +218,25 @@ class AllTransferScraper:
                     if text.isdigit():
                         skill_value = int(text)
                         break
-                    # Sometimes value is explicitly formatted? 
-                    # If not digit found, it might be string (e.g. Health 100%, Fitness Completely Fit)
-                    if not skill_value and text and "Fit" in text:
+                    if not skill_value and text and ("Fit" in text or "%" in text):
                          skill_value = text
-                         break
-                    if not skill_value and "%" in text:
-                         skill_value = text 
                          break
                 
                 if skill_value is not None:
                      data[skill_name] = skill_value
-                     skill_count += 1
-                elif "Fitness" in skill_name:
-                     # Fitness often has value in sibling but text based
-                     if siblings:
-                         data[skill_name] = siblings[0].get_text(strip=True)
+                elif "Fitness" in skill_name and siblings:
+                     data[skill_name] = siblings[0].get_text(strip=True)
 
-        # --- 3. Player Report (Quality/Potential) ---
-        # These are also in list1/list2 usually
-        # "Quality", "Potential", "Penalties"
-        # Often represented by bars, so value might be text description in next td
-        # e.g. Quality -> ... -> Formidable (text)
-        
-        report_labels = ["Quality", "Potential", "Affected Quality"]
-        for label in report_labels:
-             # Logic might be already covered by dynamic loop above if they follow same structure
-             # But usually Report values are text (e.g. "Formidable"), not numbers 0-20
+        # Reports (Quality/Potential)
+        for label in ["Quality", "Potential", "Affected Quality"]:
              if label not in data:
                   b_tag = soup.find('b', string=label)
                   if b_tag:
                        parent = b_tag.find_parent('td')
                        if parent:
-                            # Look for text value in siblings
                             siblings = parent.find_next_siblings('td')
                             for sib in siblings:
                                  txt = sib.get_text(strip=True)
-                                 # Skip if it's just the bar image td
                                  if txt: 
                                       data[label] = txt
                                       break
