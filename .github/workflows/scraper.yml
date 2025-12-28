@@ -2,7 +2,7 @@ name: Run PManager Scraper
 
 on:
   schedule:
-    - cron: '35 3 * * *'
+    - cron: '30 0,12 * * *'
   
   workflow_dispatch:
     inputs:
