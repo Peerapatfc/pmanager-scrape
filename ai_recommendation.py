@@ -105,7 +105,7 @@ def main():
     ⏰ **CURRENT DATE/TIME: {current_time}** ⏰
     
     **YOUR MISSION:**
-    Select the **TOP 15 BEST TRADES** from the list below.
+    Select the **TOP 10 BEST TRADES** from the list below.
     
     **SELECTION CRITERIA:**
     1.  **DEADLINE IS KING**: Must end within **12 HOURS**. Ignore anything later.
@@ -118,7 +118,7 @@ def main():
     Please output a Telegram message in Markdown format.
     Structure:
     
-    � *Top 15 Day Trade Signals (Expiring < 12h)* �
+    � *Top 10 Day Trade Signals (Expiring < 12h)* �
     
     1. [Player Name/ID]
        📉 Buy: [Price] | 🔮 Forecast Sell: [Forecast Sell]
@@ -129,7 +129,7 @@ def main():
     
     2. ...
     ...
-    15. ...
+    10. ...
     
     ⚠️ *Note:* Buy Price must be within budget ({current_funds}). Profit is estimated.
     
