@@ -3,7 +3,7 @@ name: Run PManager Scraper
 on:
   # Run on schedule (Twice daily at 8:45 AM & 8:45 PM Thailand time)
   schedule:
-    - cron: '30 0,12 * * *'
+    - cron: '06 3,12 * * *'
   
   # Allow manual trigger
   workflow_dispatch:
