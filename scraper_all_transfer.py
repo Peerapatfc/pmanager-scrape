@@ -62,7 +62,7 @@ class AllTransferScraper:
         
         page_num = 1
         all_players = []
-        max_pages = 3  # Limited pages per category to avoid timeout
+        max_pages = 2  # Limited pages per category to avoid timeout
         
         while page_num <= max_pages:
             print(f"Scraping page {page_num}...")
