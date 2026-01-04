@@ -4,9 +4,13 @@ import gspread
 from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
 from datetime import datetime
+from datetime import datetime, timedelta
+import re
+
+# ... (imports remain)
 
 def get_sheet_data(sheet_name):
-    """Fetch all rows from a specific sheet"""
+    # ... (unchanged)
     try:
         scopes = [
             "https://www.googleapis.com/auth/spreadsheets",
@@ -16,8 +20,6 @@ def get_sheet_data(sheet_name):
         client = gspread.authorize(creds)
         spreadsheet = client.open_by_key("1F8FWV9w1gNAGbGDd6RG929dx2jAcM-N6p2ve9fOwSfU")
         worksheet = spreadsheet.worksheet(sheet_name)
-        
-        # Get all values
         data = worksheet.get_all_records()
         return data
     except Exception as e:
@@ -25,37 +27,17 @@ def get_sheet_data(sheet_name):
         return []
 
 def send_telegram_message(message):
-    """Send message to Telegram"""
+    # ... (unchanged)
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    
     if not bot_token or not chat_id:
-        print("Telegram credentials not found")
         return
-    
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    
-    response = requests.post(url, json=payload)
-    if response.status_code == 200:
-        print("Message sent to Telegram (Markdown)!")
-    else:
-        print(f"Failed to send Markdown message: {response.text}")
-        print("Retrying as plain text...")
-        # Fallback to plain text
-        del payload["parse_mode"]
-        response = requests.post(url, json=payload)
-        if response.status_code == 200:
-             print("Message sent to Telegram (Plain Text)!")
-        else:
-             print(f"Failed to send Telegram message (Plain Text): {response.text}")
+    payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+    requests.post(url, json=payload)
 
 def parse_money(money_str):
-    """Parse money string like '9.136.350 baht' to int"""
+    # ... (unchanged)
     if isinstance(money_str, (int, float)):
         return int(money_str)
     try:
@@ -65,26 +47,43 @@ def parse_money(money_str):
     except:
         return 0
 
-def is_deadline_soon(deadline_str):
-    """Check if deadline is 'Today' or within ~12 hours"""
-    # Formats: "Today at 12:19", "2 Days", "Tomorrow at..."
+def parse_deadline(deadline_str, current_time_th):
+    """
+    Parse 'Today at 10:19' or 'Tomorrow at 10:19' into a datetime object.
+    Assumes deadline refers to the 'current_time_th' timezone context.
+    """
     if not deadline_str or not isinstance(deadline_str, str):
-        return False
+        return None
     
-    dl = deadline_str.lower()
-    if "today" in dl:
-        return True
-    # If "12:30" (time only) usually means today in some contexts, but sticking to text
-    return False
+    txt = deadline_str.lower().strip()
+    
+    # Regex to find HH:MM
+    match = re.search(r'(\d{1,2}):(\d{2})', txt)
+    if not match:
+        return None
+        
+    hour = int(match.group(1))
+    minute = int(match.group(2))
+    
+    if "today" in txt:
+        target_date = current_time_th.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    elif "tomorrow" in txt:
+        target_date = (current_time_th + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+    else:
+        return None
+        
+    return target_date
 
-def generate_message(candidates, funds_str):
+def generate_message(candidates, funds_str, current_time_th):
     """Generate Telegram message"""
+    time_str = current_time_th.strftime('%H:%M')
+    
     if not candidates:
-        return "📉 *Market Update*\n\nNo profitable flips found within budget right now."
+        return f"📉 *Market Update* ({time_str})\n\nNo profitable flips found within budget right now."
         
     msg = f"🚀 *Top 15 Day Trade Signals (Algorithm)* 🚀\n\n"
     msg += f"💰 Budget: {funds_str}\n"
-    msg += f"⏰ Time: {datetime.now().strftime('%H:%M')}\n\n"
+    msg += f"⏰ Time: {time_str}\n\n"
     
     for i, p in enumerate(candidates[:15], 1):
         name = p.get('name', 'N/A')
@@ -111,6 +110,9 @@ def generate_message(candidates, funds_str):
 def main():
     load_dotenv()
     
+    # Set Reference Time (Thailand Time: UTC+7)
+    now_th = datetime.utcnow() + timedelta(hours=7)
+    
     # 1. Gather Data
     transfer_data = get_sheet_data("Transfer Info")
     if not transfer_data:
@@ -129,14 +131,16 @@ def main():
          current_funds = parse_money(funds_raw)
 
     print(f"Current Funds: {current_funds:,}")
+    print(f"Current Time (TH): {now_th}")
 
     # 3. Filter Candidates
     candidates = []
+    
     for p in transfer_data:
         try:
             buy_price = int(p.get("buy_price", 0))
             forecast_profit = int(p.get("forecast_sell", 0))
-            deadline = str(p.get("deadline", ""))
+            deadline_str = str(p.get("deadline", ""))
             
             # Criteria 1: Affordable
             if buy_price > current_funds:
@@ -146,21 +150,33 @@ def main():
             if forecast_profit <= 0:
                 continue
                 
-            # Criteria 3: Ending Soon (Today)
-            if not is_deadline_soon(deadline):
+            # Criteria 3: Time Check (Future + Within 12 Hours)
+            deadline_dt = parse_deadline(deadline_str, now_th)
+            
+            if not deadline_dt:
                 continue
                 
-            candidates.append(p)
-        except:
+            # Calculate time difference
+            diff = deadline_dt - now_th
+            total_seconds = diff.total_seconds()
+            
+            # Keep if:
+            # a) It is in the future (> 0)
+            # b) It is within 12 hours (< 12*3600)
+            if 0 < total_seconds < (12 * 3600):
+                candidates.append(p)
+                
+        except Exception as e:
+            # print(f"Skipping row error: {e}")
             continue
 
     # 4. Sort by Profit (Descending)
     candidates.sort(key=lambda x: int(x.get("forecast_sell", 0)), reverse=True)
     
-    print(f"Found {len(candidates)} valid trade targets.")
+    print(f"Found {len(candidates)} valid trade targets (Future < 12h).")
 
     # 5. Send Message
-    msg = generate_message(candidates, funds_str)
+    msg = generate_message(candidates, funds_str, now_th)
     print("Sending Telegram notification...")
     send_telegram_message(msg)
 
