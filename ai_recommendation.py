@@ -27,14 +27,33 @@ def get_sheet_data(sheet_name):
         return []
 
 def send_telegram_message(message):
-    # ... (unchanged)
+    """Send message to Telegram with retry logic"""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    
     if not bot_token or not chat_id:
+        print("Error: Telegram credentials not found in env.")
         return
+    
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
-    requests.post(url, json=payload)
+    
+    try:
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+            print("Message sent to Telegram (Markdown)!")
+        else:
+            print(f"Failed to send Markdown: {response.text}")
+            print("Retrying as Plain Text...")
+            del payload["parse_mode"]
+            # Plain text fallback
+            response = requests.post(url, json=payload)
+            if response.status_code == 200:
+                print("Message sent to Telegram (Plain Text)!")
+            else:
+                print(f"Failed to send Plain Text: {response.text}")
+    except Exception as e:
+        print(f"Error sending to Telegram: {e}")
 
 def parse_money(money_str):
     # ... (unchanged)
