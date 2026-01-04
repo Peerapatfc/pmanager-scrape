@@ -24,6 +24,36 @@ def get_sheet_data(sheet_name):
         print(f"Error reading {sheet_name}: {e}")
         return []
 
+def send_telegram_message(message):
+    """Send message to Telegram"""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    
+    if not bot_token or not chat_id:
+        print("Telegram credentials not found")
+        return
+    
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+    
+    response = requests.post(url, json=payload)
+    if response.status_code == 200:
+        print("Message sent to Telegram (Markdown)!")
+    else:
+        print(f"Failed to send Markdown message: {response.text}")
+        print("Retrying as plain text...")
+        # Fallback to plain text
+        del payload["parse_mode"]
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+             print("Message sent to Telegram (Plain Text)!")
+        else:
+             print(f"Failed to send Telegram message (Plain Text): {response.text}")
+
 def parse_money(money_str):
     """Parse money string like '9.136.350 baht' to int"""
     if isinstance(money_str, (int, float)):
