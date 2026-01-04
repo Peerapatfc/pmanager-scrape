@@ -15,6 +15,7 @@ on:
           - all
           - team_info
           - all_transfer
+          - analysis
 
 jobs:
   scrape:
@@ -66,12 +67,11 @@ jobs:
           PM_USERNAME: ${{ secrets.PM_USERNAME }}
           PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
       
-      - name: Run AI Recommendation
-        if: ${{ success() }}
+      - name: Run Market Analysis
+        if: ${{ success() || github.event.inputs.scraper_type == 'analysis' }}
         run: |
           python ai_recommendation.py
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
