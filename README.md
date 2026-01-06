@@ -32,7 +32,6 @@ A web scraper for finding high-value players on the Planetarium Manager transfer
      TELEGRAM_BOT_TOKEN=...
      SCOUT_BOT_TOKEN=... (For dedicated scout bot)
      TELEGRAM_CHAT_ID=...
-     GEMINI_API_KEY=...
      GITHUB_TOKEN=... (For triggering workflows)
      GITHUB_REPO=Peerapatfc/pmanager-scrape
      ```
@@ -41,36 +40,33 @@ A web scraper for finding high-value players on the Planetarium Manager transfer
 
 ### GitHub Actions (Automated)
 
-1. **Secrets Needed**: `PM_USERNAME`, `PM_PASSWORD`, `GOOGLE_CREDENTIALS_JSON`, `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
+1. **Secrets Needed**: `PM_USERNAME`, `PM_PASSWORD`, `GOOGLE_CREDENTIALS_JSON`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
 2. **Schedule**: Runs daily at 7:30 AM/PM Thailand.
 
 ## Usage
 
 ### 🕵️‍♂️ Scrapers
 
-**1. Low Price Scraper** (Targets < 20k)
-```bash
-python main_low_price.py
-```
-
-**2. High Quality Scraper** (Targets Quality > 7)
-```bash
-python main_high_quality.py
-```
-
-**3. Young Potential Scraper** (Targets Age < 20, Potential > Good)
-```bash
-python main_young_potential.py
-```
-
-**4. Team Info Scraper** (Extracts Finances/Stadium)
+**1. Team Info Scraper** (Extracts Finances/Stadium)
 ```bash
 python main_team_info.py
 ```
 
-**5. All Transfer Scraper** (Deep Scan of "All" list)
+**2. Master Transfer Scraper** (Deep Scan of High Quality, Low Price, Young Potential, and All Lists)
 ```bash
 python main_all_transfer.py
+```
+
+**3. Market Analysis** (Generate Profit Recommendations)
+```bash
+python ai_recommendation.py
+```
+
+**4. Opponent Scout** (Scrape specific team)
+```bash
+python main_opponent_scout.py "https://www.pmanager.org/ver_equipa.asp?equipa=35126"
+# OR
+python main_opponent_scout.py 35126
 ```
 
 **6. Opponent Scout** (Scrape specific team)

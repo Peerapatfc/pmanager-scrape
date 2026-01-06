@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.0] - 2026-01-06
+
+### Changed
+- **AI Replacement**: Removed Gemini AI dependency. Now uses a **deterministic Python algorithm** to recommend trades based on strict Budget, Profit, and Time rules.
+- **Scraper Consolidation**: Merged `High Quality`, `Low Price`, and `Young Potential` scrapers into a single **Master Scraper** (`main_all_transfer.py`) that runs multiple search scenarios in one go.
+- **Legacy Removal**: Deleted deprecated scraper files (`main_high_quality.py`, `main_low_price.py`, etc.).
+- **Timezone Fix**: Fixed "Today/Tomorrow" parsing logic to correctly convert server time (UTC) to **Thailand Time (UTC+7)**, preventing valid future auctions from being filtered out.
+- **Workflow**: Removed `GEMINI_API_KEY`. Added granular dispatch options (`transfer`, `analysis`) to GitHub Actions.
+- **Debug Logging**: Added detailed statistics to Telegram messages when no trades are found (e.g., "Filtered: 10 Budget, 5 Time").
+
 ## [1.2.1] - 2025-12-27
 
 ### Changed

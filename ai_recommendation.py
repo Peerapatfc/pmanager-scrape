@@ -123,7 +123,7 @@ def generate_message(candidates, funds_str, current_time_th):
             f"{i}. *{name}*\n"
             f"   📉 Buy: {buy} | {profit_icon} Profit: {sell}\n"
             f"   ⏱️ Ends: {deadline}\n"
-            f"   🔗 [Link](https://www.pmanager.org/comprar_jog_lista.asp?jg_id={pid})\n"
+            f"   🔗 [Link]https://www.pmanager.org/comprar_jog_lista.asp?jg_id={pid}\n"
         )
         msg += entry + "\n"
         
@@ -158,8 +158,12 @@ def main():
 
     # 3. Filter Candidates
     candidates = []
+    dropped_stats = {"budget": 0, "profit": 0, "time": 0, "parse_error": 0}
     
-    for p in transfer_data:
+    # Debug: Print first 5 raw deadlines to check parsing
+    print("\n--- DEBUG: Checking Deadlines ---")
+    
+    for i, p in enumerate(transfer_data):
         try:
             buy_price = int(p.get("buy_price", 0))
             forecast_profit = int(p.get("forecast_sell", 0))
@@ -167,22 +171,30 @@ def main():
             
             # Criteria 1: Affordable
             if buy_price > current_funds:
+                dropped_stats["budget"] += 1
                 continue
                 
             # Criteria 2: Profitable
             if forecast_profit <= 0:
+                dropped_stats["profit"] += 1
                 continue
                 
             # Criteria 3: Time Check (Future + Within 12 Hours)
-            deadline_dt = parse_deadline(deadline_str)
+            deadline_dt = parse_deadline(deadline_str) # Returns TH Time
             
             if not deadline_dt:
+                dropped_stats["parse_error"] += 1
+                if i < 5: print(f"Parse Error for: {deadline_str}")
                 continue
                 
             # Calculate time difference
             diff = deadline_dt - now_th
             total_seconds = diff.total_seconds()
             
+            # Debug log for first few items
+            if i < 5:
+                print(f"Item: {p.get('name')} | Deadline: {deadline_str} -> Parsed(TH): {deadline_dt.strftime('%H:%M')} | Now(TH): {now_th.strftime('%H:%M')} | Diff(h): {total_seconds/3600:.2f}")
+
             # Keep if:
             # a) It is in the future (> 0)
             # b) It is within 12 hours (< 12*3600)
@@ -190,20 +202,38 @@ def main():
                 # Update deadline string to display nice Thailand Time in message
                 p["deadline"] = deadline_dt.strftime("%d/%m %H:%M")
                 candidates.append(p)
+            else:
+                dropped_stats["time"] += 1
                 
         except Exception as e:
-            # print(f"Skipping row error: {e}")
+            print(f"Skipping row error: {e}")
             continue
 
     # 4. Sort by Profit (Descending)
     candidates.sort(key=lambda x: int(x.get("forecast_sell", 0)), reverse=True)
     
-    print(f"Found {len(candidates)} valid trade targets (Future < 12h).")
+    print(f"\n--- Filter Summary ---")
+    print(f"Total Scanned: {len(transfer_data)}")
+    print(f"Passed: {len(candidates)}")
+    print(f"Dropped: {dropped_stats}")
+    print(f"----------------------\n")
 
     # 5. Send Message
-    msg = generate_message(candidates, funds_str, now_th)
-    print("Sending Telegram notification...")
-    send_telegram_message(msg)
+    if not candidates:
+        # Send debug info to Telegram if empty
+        debug_msg = f"📉 *Market Update* ({now_th.strftime('%H:%M')})\n\n"
+        debug_msg += "No profitable flips found within budget right now.\n\n"
+        debug_msg += "*Filter Stats:*\n"
+        debug_msg += f"❌ Budget: {dropped_stats['budget']}\n"
+        debug_msg += f"❌ No Profit: {dropped_stats['profit']}\n"
+        debug_msg += f"❌ Time (>12h or Past): {dropped_stats['time']}\n"
+        debug_msg += f"❌ Parse Error: {dropped_stats['parse_error']}\n"
+        debug_msg += f"🔍 *Total Checked:* {len(transfer_data)}"
+        send_telegram_message(debug_msg)
+    else:
+        msg = generate_message(candidates, funds_str, now_th)
+        print("Sending Telegram notification...")
+        send_telegram_message(msg)
 
 if __name__ == "__main__":
     main()
