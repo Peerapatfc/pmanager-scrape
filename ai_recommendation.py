@@ -117,13 +117,13 @@ def generate_message(candidates, funds_str, current_time_th):
         deadline = p.get('deadline', 'N/A')
         
         # Emoji based on profit
-        profit_icon = "🤑" if profit > 1000000 else "💵"
+        profit_icon = "🤑" if profit > 10000000 else "💵"
         
         entry = (
             f"{i}. *{name}*\n"
             f"   📉 Buy: {buy} | {profit_icon} Profit: {sell}\n"
             f"   ⏱️ Ends: {deadline}\n"
-            f"   🔗 [Link]https://www.pmanager.org/comprar_jog_lista.asp?jg_id={pid}\n"
+            f"   🔗 Link: https://www.pmanager.org/comprar_jog_lista.asp?jg_id={pid}\n"
         )
         msg += entry + "\n"
         
