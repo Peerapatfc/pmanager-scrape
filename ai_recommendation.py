@@ -66,10 +66,9 @@ def parse_money(money_str):
     except:
         return 0
 
-def parse_deadline(deadline_str, current_time_th):
+def parse_deadline(deadline_str):
     """
-    Parse 'Today at 10:19' or 'Tomorrow at 10:19' into a datetime object.
-    Assumes deadline refers to the 'current_time_th' timezone context.
+    Parse 'Today at 10:19' (UTC) -> Convert to Thailand Time (UTC+7).
     """
     if not deadline_str or not isinstance(deadline_str, str):
         return None
@@ -84,14 +83,19 @@ def parse_deadline(deadline_str, current_time_th):
     hour = int(match.group(1))
     minute = int(match.group(2))
     
+    # Base is UTC
+    utc_now = datetime.utcnow()
+    
     if "today" in txt:
-        target_date = current_time_th.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        utc_deadline = utc_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
     elif "tomorrow" in txt:
-        target_date = (current_time_th + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+        utc_deadline = (utc_now + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0)
     else:
         return None
-        
-    return target_date
+    
+    # Convert to Thailand Time (UTC+7)
+    th_deadline = utc_deadline + timedelta(hours=7)
+    return th_deadline
 
 def generate_message(candidates, funds_str, current_time_th):
     """Generate Telegram message"""
@@ -170,7 +174,7 @@ def main():
                 continue
                 
             # Criteria 3: Time Check (Future + Within 12 Hours)
-            deadline_dt = parse_deadline(deadline_str, now_th)
+            deadline_dt = parse_deadline(deadline_str)
             
             if not deadline_dt:
                 continue
@@ -183,6 +187,8 @@ def main():
             # a) It is in the future (> 0)
             # b) It is within 12 hours (< 12*3600)
             if 0 < total_seconds < (12 * 3600):
+                # Update deadline string to display nice Thailand Time in message
+                p["deadline"] = deadline_dt.strftime("%d/%m %H:%M")
                 candidates.append(p)
                 
         except Exception as e:
