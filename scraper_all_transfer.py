@@ -38,10 +38,11 @@ class AllTransferScraper:
             print(f"Login failed: {e}")
             raise
 
-    def search_transfer_list(self, search_url=None):
+    def search_transfer_list(self, search_url=None, max_pages=150):
         """
         Search using a provided URL or the default 'All Players' filter.
         search_url: Optional URL to start scraping from.
+        max_pages: Limit number of pages to scrape (Default: 150)
         """
         if search_url:
             print(f"Navigating to Custom Search: {search_url}...")
@@ -62,7 +63,7 @@ class AllTransferScraper:
         
         page_num = 1
         all_players = []
-        max_pages = 150  # Limited pages per category to avoid timeout
+        # max_pages handled by logic below
         
         while page_num <= max_pages:
             print(f"Scraping page {page_num}...")
@@ -242,3 +243,41 @@ class AllTransferScraper:
                                       break
 
         return data
+
+    def get_player_history(self, player_id):
+        """Scrape only the transfer history for a specific player (Optimized)"""
+        history_url = f"{self.base_url}/marcos_jog.asp?jog_id={player_id}"
+        print(f"Checking history for {player_id}...")
+        
+        try:
+            self.page.goto(history_url)
+            try:
+                self.page.wait_for_selector("div#tabela_titulo", timeout=3000)
+            except:
+                pass
+            
+            soup_hist = BeautifulSoup(self.page.content(), 'html.parser')
+            
+            # Find "Transfers" section
+            transfers_header = soup_hist.find(lambda tag: tag.name == "div" and "Transfers" in tag.get_text(strip=True))
+            
+            if transfers_header:
+                transfers_table = transfers_header.find_next("table", class_="table_border")
+                
+                if transfers_table:
+                    # Get first data row
+                    rows = transfers_table.find_all("tr", class_=["list1", "list2"])
+                    if rows:
+                        first_row = rows[0]
+                        cols = first_row.find_all("td")
+                        if len(cols) >= 4:
+                            val_text = cols[3].get_text(strip=True)
+                            # Parse "1.984.300 baht" -> 1984300
+                            clean_val = re.sub(r'[^\d]', '', val_text)
+                            if clean_val:
+                                return int(clean_val)
+                                
+        except Exception as e:
+            print(f"Error scraping history for {player_id}: {e}")
+
+        return 0

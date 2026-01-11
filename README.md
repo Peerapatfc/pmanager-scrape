@@ -1,100 +1,110 @@
-# Planetarium Manager Scraper
+# PManager Scraper & Analyzer
 
-A web scraper for finding high-value players on the Planetarium Manager transfer list with automated Google Sheets integration.
+A Python-based toolset for automating player scouting, market analysis, and transfer recommendations for PManager.org.
 
-## Features
+## 🚀 Features
 
-- **Automated Authentication**: Logs into the game securely.
-- **Advanced Filtering**: Finds players with strict criteria.
-- **Deep Extraction**: Visits individual negotiation pages to extract detailed attributes.
-- **Dynamic Skill Extraction**: Automatically scrapes all skills (Primary, Secondary, Physical, Tertiary) for any position.
-- **Opponent Scout**: Scrapes entire squads given a team ID.
-- **Google Sheets Integration**: Upserts data (updates existing, adds new) to specific tabs.
-- **Telegram Bot Control**: Trigger scrapers remotely via Telegram commands.
-- **GitHub Actions**: Automated scheduling and manual dispatch support.
+- **Automated Scraping**: Fetches player data from the transfer market based on multiple criteria:
+  - High Quality players
+  - Low Price bargains
+  - Young Potential talents
+- **Market Analysis**: Calculates key financial metrics:
+  - **ROI (Return on Investment)**: Percentage profit potential.
+  - **Value Diff**: Difference between Estimated Value and Buying Price.
+  - **Forecast Sell**: ROI-based prediction of sell price.
+- **Filtering**:
+  - Filters out players above budget.
+  - Checks for profitable "flips" (Buy Low, Sell High).
+  - Ensures transfer deadline is within a strategic window (e.g., next 12 hours).
+- **Integrations**:
+  - **Google Sheets**: Upserts player data to "All Players" and replaces "Transfer Info" for real-time market tracking.
+  - **Telegram Bot**: Sends automated alerts for the top 15 day-trade signals.
 
-## Setup
+## 🛠️ Tech Stack
 
-### Local Development
+- **Language**: Python 3.9+
+- **Libraries**:
+  - `pandas` - Data manipulation and CSV export.
+  - `beautifulsoup4` - HTML parsing (used in legacy/scraper classes).
+  - `requests` - HTTP requests.
+  - `gspread` - Google Sheets API interactions.
+  - `python-dotenv` - Environment variable management.
 
-1. **Install Python 3.x**
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   playwright install
-   ```
-3. **Configure Credentials**:
-   - Rename `.env.example` to `.env`
-   - Add your details:
-     ```
-     PM_USERNAME=...
-     PM_PASSWORD=...
-     TELEGRAM_BOT_TOKEN=...
-     SCOUT_BOT_TOKEN=... (For dedicated scout bot)
-     TELEGRAM_CHAT_ID=...
-     GITHUB_TOKEN=... (For triggering workflows)
-     GITHUB_REPO=Peerapatfc/pmanager-scrape
-     ```
-4. **Google Sheets Setup**:
-   - Place `credentials.json` in the root.
+## ⚙️ Setup & Installation
 
-### GitHub Actions (Automated)
+1.  **Clone the repository**:
+    ```bash
+    git clone <repository_url>
+    cd pmanager-scrape
+    ```
 
-1. **Secrets Needed**: `PM_USERNAME`, `PM_PASSWORD`, `GOOGLE_CREDENTIALS_JSON`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
-2. **Schedule**: Runs daily at 7:30 AM/PM Thailand.
+2.  **Install Dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-## Usage
+3.  **Environment Configuration**:
+    Create a `.env` file in the root directory (see `.env.example`):
+    ```env
+    PM_USERNAME=your_username
+    PM_PASSWORD=your_password
+    TELEGRAM_BOT_TOKEN=your_bot_token
+    TELEGRAM_CHAT_ID=your_chat_id
+    ```
 
-### 🕵️‍♂️ Scrapers
+4.  **Google Credentials**:
+    Place your Google Service Account JSON key as `credentials.json` in the root directory.
 
-**1. Team Info Scraper** (Extracts Finances/Stadium)
-```bash
-python main_team_info.py
-```
+## 🏃 Usage
 
-**2. Master Transfer Scraper** (Deep Scan of High Quality, Low Price, Young Potential, and All Lists)
+### 1. Run the Scraper
+Scrapes the transfer market and updates `transfer_targets_all.csv` and Google Sheets.
 ```bash
 python main_all_transfer.py
 ```
 
-**3. Market Analysis** (Generate Profit Recommendations)
+### 2. Run Recommendations
+Analyzes the scraped data (from Google Sheets), applies filters (Budget, Profit, Deadline), and sends the top picks to Telegram.
 ```bash
 python ai_recommendation.py
 ```
 
-**4. Opponent Scout** (Scrape specific team)
-```bash
-python main_opponent_scout.py "https://www.pmanager.org/ver_equipa.asp?equipa=35126"
-# OR
-python main_opponent_scout.py 35126
+## 📂 Project Structure
+
+```mermaid
+graph TD
+    A[Start] --> B(main_all_transfer.py);
+    B --> C{Scrape Scenarios};
+    C -->|High Quality| D[Search & Extract];
+    C -->|Low Price| D;
+    C -->|Young Potential| D;
+    D --> E[Calculate Metrics];
+    E --> F[Save to CSV];
+    E --> G[Upload to Google Sheets];
+    G --> H(ai_recommendation.py);
+    H --> I[Read 'Transfer Info' Sheet];
+    H --> J[Read 'Team Info' Funds];
+    J --> K{Filter Logic};
+    K -->|Budget & Profit Check| L[Top Candidates];
+    K -->|Deadline Check| L;
+    L --> M[Send Telegram Alert];
 ```
 
-**6. Opponent Scout** (Scrape specific team)
-```bash
-python main_opponent_scout.py "https://www.pmanager.org/ver_equipa.asp?equipa=35126"
-# OR
-python main_opponent_scout.py 35126
-```
+### Key Files
 
-### 🤖 Telegram Bots
+| File | Description |
+| :--- | :--- |
+| `main_all_transfer.py` | Main entry point for the scraping process. Manages login, search scenarios, and data upload. |
+| `scraper_all_transfer.py` | Contains the `AllTransferScraper` class with methods for login, searching, and parsing player details. |
+| `ai_recommendation.py` | Reads data from Google Sheets, applies investment logic, and sends Telegram notifications. |
+| `main_team_info.py` | Scrapes current team status (funds, roster) to update "Team Info" sheet. |
+| `requirements.txt` | Python dependency list. |
 
-**General Bot** (`telegram_bot.py`)
-- Responds to `/scout <target>` by triggering the GitHub Action.
+## 📊 Data Flow
 
-**Scout Bot** (`telegram_scout_bot.py`)
-- Dedicated bot using `SCOUT_BOT_TOKEN`.
-- Listens for `/scout` or raw URLs.
-- Triggers `opponent_scout.yml` workflow.
-
-## Output
-
-Results are uploaded to **Google Sheets**:
-- **High Quality**: "High Quality" tab
-- **Low Price**: "Low Price" tab
-- **Young Potential**: "Young Potential" tab
-- **All Players**: "All Players" tab (Upsert Logic: Preserves history)
-- **Team Info**: "Team Info" tab
-
-## License
-
-Private use only.
+1.  **Scraping**: `main_all_transfer.py` logs in and iterates through search URLs.
+2.  **Processing**: Data is cleaned, and financial metrics (`value_diff`, `roi`) are calculated.
+3.  **Storage**:
+    *   `transfer_targets_all.csv` (Local backup)
+    *   Google Sheets: "All Players" (Historical db), "Transfer Info" (Current market)
+4.  **Action**: `ai_recommendation.py` reads "Transfer Info", checks against your current "Available Funds" in "Team Info", and alerts you to the best deals ending soon.

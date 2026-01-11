@@ -62,7 +62,7 @@ def upload_to_sheets(df, spreadsheet_id, sheet_name):
         # Helper to sort columns cleanly (Optional, but good for UI)
         # Put 'id', 'name', 'position' first if they exist
         cols = list(df_final.columns)
-        priority = ['id', 'name', 'position', 'age', 'team', 'Quality', 'Potential', 'last_updated']
+        priority = ['id', 'name', 'position', 'age', 'team', 'Quality', 'Potential', 'last_transfer_price', 'last_updated']
         sorted_cols = [c for c in priority if c in cols] + [c for c in cols if c not in priority]
         df_final = df_final[sorted_cols]
         
@@ -214,7 +214,7 @@ def main():
                 # SHEET 1: All Players (Attributes - Upsert)
                 # Filter strictly for attribute columns + ID. Exclude financial data.
                 drop_cols = ["estimated_value", "asking_price", "buy_price", "value_diff", 
-                             "roi", "deadline", "bids_count", "bids_avg", "forecast_sell"]
+                             "roi", "bids_count", "bids_avg", "forecast_sell"]
                 
                 # Keep only columns that are NOT in drop_cols (but keep if they exist)
                 attr_cols = [c for c in df.columns if c not in drop_cols]
