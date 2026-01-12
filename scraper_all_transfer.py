@@ -258,8 +258,13 @@ class AllTransferScraper:
             
             soup_hist = BeautifulSoup(self.page.content(), 'html.parser')
             
-            # Find "Transfers" section
-            transfers_header = soup_hist.find(lambda tag: tag.name == "div" and "Transfers" in tag.get_text(strip=True))
+            # Find "Transfers" section specifically by looking for div with id="tabela_titulo"
+            # that contains "Transfers" text (not just any div containing that text)
+            transfers_header = None
+            for div in soup_hist.find_all("div", id="tabela_titulo"):
+                if "Transfers" in div.get_text(strip=True):
+                    transfers_header = div
+                    break
             
             if transfers_header:
                 transfers_table = transfers_header.find_next("table", class_="table_border")
@@ -272,7 +277,7 @@ class AllTransferScraper:
                         cols = first_row.find_all("td")
                         if len(cols) >= 4:
                             val_text = cols[3].get_text(strip=True)
-                            # Parse "1.984.300 baht" -> 1984300
+                            # Parse "518.750.000 baht" -> 518750000
                             clean_val = re.sub(r'[^\d]', '', val_text)
                             if clean_val:
                                 return int(clean_val)
@@ -281,3 +286,74 @@ class AllTransferScraper:
             print(f"Error scraping history for {player_id}: {e}")
 
         return 0
+
+    def get_bid_info(self, player_id):
+        """Scrape only bid info from negotiation page (optimized, no profile page visit)"""
+        neg_url = f"{self.base_url}/comprar_jog_lista.asp?jg_id={player_id}"
+        
+        data = {
+            "estimated_value": 0,
+            "bids_count": 0,
+            "bids_avg": 0,
+            "deadline": "N/A"
+        }
+        
+        try:
+            self.page.goto(neg_url)
+            try:
+                self.page.wait_for_selector("body", timeout=3000)
+            except:
+                pass
+            
+            soup = BeautifulSoup(self.page.content(), 'html.parser')
+            
+            # Estimated Value
+            label_est = soup.find(string=re.compile("Estimated Transfer Value"))
+            if label_est:
+                parent = label_est.find_parent('td')
+                if parent:
+                    val_td = parent.find_next_sibling('td')
+                    if val_td:
+                        clean = re.sub(r'[^\d]', '', val_td.get_text(strip=True))
+                        if clean:
+                            data["estimated_value"] = int(clean)
+            
+            # Deadline
+            label_dead = soup.find(string="Deadline")
+            if label_dead:
+                parent = label_dead.find_parent('td')
+                if parent:
+                    val_td = parent.find_next_sibling('td')
+                    if val_td:
+                        data["deadline"] = val_td.get_text(strip=True, separator=" ")
+            
+            # Bids Count - extract as number
+            label_bids = soup.find(string="Bids")
+            if label_bids:
+                parent = label_bids.find_parent('td')
+                if parent:
+                    val_td = parent.find_next_sibling('td')
+                    if val_td:
+                        count_text = val_td.get_text(strip=True)
+                        if count_text.isdigit():
+                            data["bids_count"] = int(count_text)
+            
+            # Bids Average - extract only the number
+            label_avg = soup.find(string="Bids Average (Scout)")
+            if label_avg:
+                parent = label_avg.find_parent('td')
+                if parent:
+                    val_td = parent.find_next_sibling('td')
+                    if val_td:
+                        avg_text = val_td.get_text(strip=True)
+                        # Convert "8.000.200 baht" -> 8000200
+                        clean_avg = re.sub(r'[^\d]', '', avg_text)
+                        if clean_avg:
+                            data["bids_avg"] = int(clean_avg)
+                        else:
+                            data["bids_avg"] = 0
+                        
+        except Exception as e:
+            print(f"Error scraping bid info for {player_id}: {e}")
+        
+        return data

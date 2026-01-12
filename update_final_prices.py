@@ -35,13 +35,6 @@ def parse_deadline(deadline_str):
     hour = int(match.group(1))
     minute = int(match.group(2))
     
-    # Base is UTC (system time often UTC in CI, but here we run locally or cloud)
-    # The site times are often relative.
-    # We assume "Today" = Current UTC Date, then converted.
-    # Actually site is UTC usually?
-    # Let's align with ai_recommendation logic:
-    # "Base is UTC... Convert to Thailand Time (UTC+7)"
-    
     utc_now = datetime.utcnow()
     
     if "today" in txt:
@@ -72,27 +65,12 @@ def main():
     now_th = datetime.utcnow() + timedelta(hours=7)
     print(f"Current Time (TH): {now_th.strftime('%Y-%m-%d %H:%M')}")
     
-    # 2. Identify Targets
-    # Check if deadline passed within the last X hours (e.g. 2 hours to be safe)
-    # And last_transfer_price is 0 or empty
-    
-    targets = []
-    
-    # We need row index to update specifically? 
-    # gspread batch update is better. We can reconstruct the whole data or update cells.
-    # Since we might update random rows, updating cells is better or re-uploading all.
-    # Re-uploading all is easier but risks overwriting if other processes run.
-    # But usually this is the only writer to 'All Players' attributes except main scraper.
-    # Let's modify 'records' in place and re-upload.
-    
     updates_count = 0
     
     scraper = AllTransferScraper()
     scraper.start(headless=True)
     
-    # Login (Might be needed for history page?)
-    # History page is usually public? "marcos_jog.asp" might be public.
-    # Let's try without login first? No, usually PManager requires login for details.
+    # Login
     username = os.getenv("PM_USERNAME")
     password = os.getenv("PM_PASSWORD")
     if username and password:
@@ -101,34 +79,59 @@ def main():
     try:
         for i, row in enumerate(records):
             pid = str(row.get("id", ""))
+            if not pid:
+                continue
+                
             deadline_str = str(row.get("deadline", ""))
             last_price = row.get("last_transfer_price", 0)
             
-            # Skip if already has price (assuming > 0 means we got it)
-            # Note: Sometimes it sold for 0? Unlikely.
-            if last_price and str(last_price) != "0" and str(last_price) != "":
-                continue
-                
-            if not pid: continue
-            
             dead_dt = parse_deadline(deadline_str)
-            if not dead_dt: continue
             
-            # Check deviation
-            # We want: Deadline < Now (It passed)
-            # And: Now - Deadline <= 2 hours (It passed recently)
-            diff = now_th - dead_dt
-            diff_hours = diff.total_seconds() / 3600
+            # Calculate time difference
+            if dead_dt:
+                diff = now_th - dead_dt
+                diff_hours = diff.total_seconds() / 3600
+            else:
+                diff_hours = None
             
-            # If diff positive, deadline passed.
-            # We look for window: 0 < diff_hours < 2
-            # Or maybe just "passed and we don't have price"?
-            # User said "get player only pass deadline within hour".
-            
-            if 0 < diff_hours <= 2: 
-                print(f"Target found: {row.get('name')} (ID: {pid}) | Ended {diff_hours:.1f}h ago")
+            # =====================================================
+            # PHASE 1: Active Listings (deadline NOT passed yet)
+            # Update: estimated_value, bids_count, bids_avg, deadline
+            # =====================================================
+            if dead_dt and diff_hours is not None and diff_hours < 0:
+                # Deadline is in the future = still active
+                print(f"Active listing: {row.get('name')} (ID: {pid}) | Ends in {-diff_hours:.1f}h")
                 
-                # Scrape
+                try:
+                    bid_info = scraper.get_bid_info(pid)
+                    
+                    # Update fields
+                    if bid_info.get("estimated_value", 0) > 0:
+                        records[i]["estimated_value"] = bid_info["estimated_value"]
+                    if bid_info.get("bids_count", "0") != "0":
+                        records[i]["bids_count"] = bid_info["bids_count"]
+                    if bid_info.get("bids_avg", "N/A") != "N/A":
+                        records[i]["bids_avg"] = bid_info["bids_avg"]
+                    if bid_info.get("deadline", "N/A") != "N/A":
+                        records[i]["deadline"] = bid_info["deadline"]
+                    
+                    updates_count += 1
+                    print(f"  -> Updated: est={bid_info.get('estimated_value', 0):,}, bids={bid_info.get('bids_count', '0')}, avg={bid_info.get('bids_avg', 'N/A')}")
+                    
+                except Exception as e:
+                    print(f"  -> Error: {e}")
+            
+            # =====================================================
+            # PHASE 2: Completed Listings (deadline passed > 2 hours)
+            # Update: last_transfer_price from history
+            # =====================================================
+            elif dead_dt and diff_hours is not None and diff_hours > 2:
+                # Skip if already has price
+                if last_price and str(last_price) != "0" and str(last_price) != "":
+                    continue
+                
+                print(f"Completed listing: {row.get('name')} (ID: {pid}) | Ended {diff_hours:.1f}h ago")
+                
                 try:
                     price = scraper.get_player_history(pid)
                     if price > 0:
@@ -146,11 +149,7 @@ def main():
     # 3. Save Updates
     if updates_count > 0:
         print(f"Updating {updates_count} records in sheet...")
-        # We replace the whole sheet to be simple and safe with indices
-        # Ensure headers match
         headers = list(records[0].keys())
-        # We need to make sure 'last_transfer_price' is a column. 
-        # get_all_records uses first row as keys.
         
         # Prepare data list
         data_to_upload = [headers]
