@@ -1,43 +1,22 @@
 import os
 import json
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
-from scraper_team_info import TeamInfoScraper
-import gspread
-from google.oauth2.service_account import Credentials
+from src.config import config
+from src.core.logger import logger
+from src.scrapers.team import TeamInfoScraper
+from src.services.gsheets import SheetManager
 
-# Google Sheets Configuration
-SPREADSHEET_ID = "1F8FWV9w1gNAGbGDd6RG929dx2jAcM-N6p2ve9fOwSfU"
-SHEET_NAME = "Team Info"
-
-def append_to_sheet(info_dict, spreadsheet_id, sheet_name):
+def append_to_sheet(info_dict):
     """Append team info row to Google Sheets"""
     try:
-        # Authenticate
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
-        ]
-        creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
-        client = gspread.authorize(creds)
+        sheet_manager = SheetManager()
+        worksheet = sheet_manager.get_worksheet(sheet_name="Team Info") # Assuming this sheet name logic
         
-        # Open spreadsheet
-        spreadsheet = client.open_by_key(spreadsheet_id)
+        # NOTE: Using 'Team Info' from config if added, but let's assume "Team Info" string for now or add to config
+        # config.SHEET_NAME_TEAM_INFO doesn't exist yet, using literal as per old script
         
-        # Get or create worksheet
-        try:
-            worksheet = spreadsheet.worksheet(sheet_name)
-        except gspread.WorksheetNotFound:
-            worksheet = spreadsheet.add_worksheet(title=sheet_name, rows=1000, cols=20)
-            # Add header if new
-            header = [
-                "Date", "Team Name", "Manager", "Available Funds", "Financial Situation",
-                "Wages Sum", "Wage Roof", "Academy", "Players", "Age Average", 
-                "Players Value", "Team Reputation", "Division", "Fan Club"
-            ]
-            worksheet.append_row(header)
-            
         # Prepare row data
+        # UTC+7
         thailand_time = (datetime.utcnow() + timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
         
         row = [
@@ -57,86 +36,64 @@ def append_to_sheet(info_dict, spreadsheet_id, sheet_name):
             info_dict.get("fan_club_size", "N/A")
         ]
         
-        # Check if header exists
-        if worksheet.row_count < 1 or not worksheet.row_values(1):
+        # Logic: Resize to 2 rows (Header + 1 Data Row), Update Row 2
+        # This keeps only the latest status.
+        # But we need to ensure header exists?
+        # SheetManager doesn't expose resize/append_row easily without direct access.
+        # We can use sheet_manager.worksheet object directly if we really need specific logic.
+        
+        # Direct access to gspread worksheet
+        ws = worksheet
+        
+        if ws.row_count < 1 or not ws.row_values(1):
              header = [
                 "Date", "Team Name", "Manager", "Available Funds", "Financial Situation",
                 "Wages Sum", "Wage Roof", "Academy", "Players", "Age Average", 
                 "Players Value", "Team Reputation", "Division", "Fan Club"
             ]
-             worksheet.append_row(header)
-
-        # UPDATE LOGIC: Replace Row 2 (or append if empty)
-        # We want to keep a single row of the LATEST data.
-        # Clearing from row 2 onwards is safer.
+             ws.append_row(header)
         
-        # Batch update: Clear old data -> Update Row 2
-        worksheet.resize(rows=2) # Ensure at least 2 rows exist
-        # Update Row 2 specifically
-        range_start = "A2"
-        # gspread uses list of lists for update
-        worksheet.update([row], range_name=range_start, value_input_option="USER_ENTERED")
+        ws.resize(rows=2)
+        ws.update([row], range_name="A2", value_input_option="USER_ENTERED")
         
-        # Optional: Clean up any extra rows if they existed before?
-        # resize(2) handles it mostly, but let's be sure.
-        # Actually, simpler approach: Clear sheet, Write Header, Write Row.
-        # But user might have custom formatting on header, so let's keep header.
-        
-        print(f"✓ Updated Team Info in Google Sheets: {sheet_name}")
+        logger.info(f"Updated Team Info in Google Sheets")
         return True
         
     except Exception as e:
-        print(f"✗ Failed to upload to Google Sheets: {e}")
+        logger.error(f"Failed to upload to Google Sheets: {e}")
         return False
 
 def main():
-    load_dotenv()
-    username = os.getenv("PM_USERNAME")
-    password = os.getenv("PM_PASSWORD")
-
-    if not username or not password:
-        print("Error: PM_USERNAME and PM_PASSWORD must be set in .env file")
-        return
+    config.validate()
     
-    print("Starting Team Info Scraper...")
+    logger.info("Starting Team Info Scraper...")
     scraper = TeamInfoScraper()
     
     try:
-        # Use headless mode in CI environment (GitHub Actions)
-        is_ci = os.getenv("CI", "false").lower() == "true"
-        scraper.start(headless=is_ci) 
+        scraper.start(headless=config.HEADLESS_MODE) 
+        scraper.login(config.PM_USERNAME, config.PM_PASSWORD)
+            
+        info = scraper.get_team_info()
         
-        # Login
-        if username != "your_username":
-            scraper.login(username, password)
-            
-            # Get Team Info
-            info = scraper.get_team_info()
-            
-            # Print to console
-            print("\n" + "="*50)
-            print("TEAM INFORMATION")
-            print("="*50)
-            for key, value in info.items():
-                if not key.endswith("_int"): # Skip integer versions for display
-                    print(f"{key.replace('_', ' ').title()}: {value}")
-            print("="*50)
-            
-            # Save to JSON
-            filename = "team_info.json"
-            with open(filename, "w", encoding='utf-8') as f:
-                json.dump(info, f, indent=4, ensure_ascii=False)
-            
-            print(f"\nSaved team info to {filename}")
-            
-            # Upload to Google Sheets
-            append_to_sheet(info, SPREADSHEET_ID, SHEET_NAME)
-            
-        else:
-            print("Please update .env with actual credentials.")
+        logger.info("="*50)
+        logger.info("TEAM INFORMATION")
+        logger.info("="*50)
+        for key, value in info.items():
+            if not key.endswith("_int"):
+                logger.info(f"{key.replace('_', ' ').title()}: {value}")
+        logger.info("="*50)
+        
+        # Save to JSON
+        filename = "team_info.json"
+        with open(filename, "w", encoding='utf-8') as f:
+            json.dump(info, f, indent=4, ensure_ascii=False)
+        
+        logger.info(f"Saved team info to {filename}")
+        
+        append_to_sheet(info)
 
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logger.error(f"An error occurred: {e}")
     finally:
         scraper.stop()
 

@@ -1,176 +1,110 @@
-import os
-import re
-import time
-import gspread
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
-from google.oauth2.service_account import Credentials
-from scraper_all_transfer import AllTransferScraper
-
-# Configuration
-SPREADSHEET_ID = "1F8FWV9w1gNAGbGDd6RG929dx2jAcM-N6p2ve9fOwSfU"
-SHEET_NAME = "All Players"
-
-def get_sheet_client():
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
-    creds = Credentials.from_service_account_file("credentials.json", scopes=scopes)
-    return gspread.authorize(creds)
-
-def parse_deadline(deadline_str):
-    """
-    Parse 'Today at 10:19' or 'Tomorrow at ...' -> UTC+7 Datetime
-    Same logic as ai_recommendation.py
-    """
-    if not deadline_str or not isinstance(deadline_str, str):
-        return None
-    
-    txt = deadline_str.lower().strip()
-    match = re.search(r'(\d{1,2}):(\d{2})', txt)
-    if not match:
-        return None
-        
-    hour = int(match.group(1))
-    minute = int(match.group(2))
-    
-    utc_now = datetime.utcnow()
-    
-    if "today" in txt:
-        target_utc = utc_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    elif "tomorrow" in txt:
-        target_utc = (utc_now + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0)
-    else:
-        # Might be a date like "12/01 ..." if far future, but usually scraper sees relative
-        return None
-    
-    # Return TH time for consistency with "now_th"
-    return target_utc + timedelta(hours=7)
+from src.config import config
+from src.core.logger import logger
+from src.core.utils import parse_deadline, clean_currency
+from src.services.gsheets import SheetManager
+from src.scrapers.transfer import TransferScraper
 
 def main():
-    load_dotenv()
+    config.validate()
     
-    # 1. Setup
-    print("Connecting to Google Sheets...")
-    client = get_sheet_client()
-    sh = client.open_by_key(SPREADSHEET_ID)
-    worksheet = sh.worksheet(SHEET_NAME)
+    logger.info("Starting Price Updater...")
+    sheet_manager = SheetManager()
     
-    # Get all records
-    records = worksheet.get_all_records()
-    print(f"Loaded {len(records)} players from '{SHEET_NAME}'.")
+    records = sheet_manager.get_all_records(config.SHEET_NAME_ALL_PLAYERS)
+    logger.info(f"Loaded {len(records)} players.")
     
-    # Current Time (TH)
-    now_th = datetime.utcnow() + timedelta(hours=7)
-    print(f"Current Time (TH): {now_th.strftime('%Y-%m-%d %H:%M')}")
+    scraper = TransferScraper(base_url="https://www.pmanager.org")
+    scraper.start(headless=config.HEADLESS_MODE)
     
     updates_count = 0
-    
-    scraper = AllTransferScraper()
-    scraper.start(headless=True)
-    
-    # Login
-    username = os.getenv("PM_USERNAME")
-    password = os.getenv("PM_PASSWORD")
-    if username and password:
-        scraper.login(username, password)
+    # utils.parse_deadline returns TH time (UTC+7)
+    # So we compare against current UTC+7
+    now_th = datetime.utcnow() + timedelta(hours=7)
     
     try:
+        scraper.login(config.PM_USERNAME, config.PM_PASSWORD)
+        
         for i, row in enumerate(records):
             pid = str(row.get("id", ""))
-            if not pid:
-                continue
-                
+            if not pid: continue
+            
             deadline_str = str(row.get("deadline", ""))
             last_price = row.get("last_transfer_price", 0)
             
+            # Use utility to parsing
             dead_dt = parse_deadline(deadline_str)
             
-            # Calculate time difference
-            if dead_dt:
-                diff = now_th - dead_dt
-                diff_hours = diff.total_seconds() / 3600
-            else:
-                diff_hours = None
+            if not dead_dt:
+                continue
+                
+            diff = now_th - dead_dt
+            diff_hours = diff.total_seconds() / 3600
             
-            # =====================================================
-            # PHASE 1: Active Listings (deadline NOT passed yet)
-            # Update: estimated_value, bids_count, bids_avg, deadline
-            # =====================================================
-            if dead_dt and diff_hours is not None and diff_hours < 0:
-                # Deadline is in the future = still active
-                print(f"Active listing: {row.get('name')} (ID: {pid}) | Ends in {-diff_hours:.1f}h")
-                
-                try:
-                    bid_info = scraper.get_bid_info(pid)
-                    
-                    # Update fields
-                    if bid_info.get("estimated_value", 0) > 0:
-                        records[i]["estimated_value"] = bid_info["estimated_value"]
-                    if bid_info.get("bids_count", "0") != "0":
-                        records[i]["bids_count"] = bid_info["bids_count"]
-                    if bid_info.get("bids_avg", "N/A") != "N/A":
-                        records[i]["bids_avg"] = bid_info["bids_avg"]
-                    if bid_info.get("deadline", "N/A") != "N/A":
-                        records[i]["deadline"] = bid_info["deadline"]
-                    
-                    updates_count += 1
-                    print(f"  -> Updated: est={bid_info.get('estimated_value', 0):,}, bids={bid_info.get('bids_count', '0')}, avg={bid_info.get('bids_avg', 'N/A')}")
-                    
-                except Exception as e:
-                    print(f"  -> Error: {e}")
-            
-            # =====================================================
-            # PHASE 2: Completed Listings (deadline passed > 2 hours)
-            # Update: last_transfer_price from history
-            # =====================================================
-            elif dead_dt and diff_hours is not None and diff_hours > 2:
-                # Skip if already has price
-                if last_price and str(last_price) != "0" and str(last_price) != "":
-                    continue
-                
-                print(f"Completed listing: {row.get('name')} (ID: {pid}) | Ended {diff_hours:.1f}h ago")
-                
-                try:
-                    price = scraper.get_player_history(pid)
-                    if price > 0:
-                        records[i]["last_transfer_price"] = price
-                        
-                        # Calculate Ratio
-                        bids_avg_str = str(row.get("bids_avg", "0")).replace(",", "").replace(".", "")
-                        if bids_avg_str.isdigit() and int(bids_avg_str) > 0:
-                             bids_avg = int(bids_avg_str)
-                             ratio = price / bids_avg
-                             records[i]["sale_to_bid_ratio"] = round(ratio, 2)
-                             print(f"  -> Sold for: {price:,} | Ratio: {ratio:.2f}")
-                        else:
-                             records[i]["sale_to_bid_ratio"] = 0
-                             print(f"  -> Sold for: {price:,} | Ratio: N/A")
-                        
-                        updates_count += 1
-                    else:
-                        print("  -> No transfer recorded yet.")
-                except Exception as e:
-                    print(f"  -> Error: {e}")
-                    
+            # PHASE 1: Active (Future)
+            if diff_hours < 0:
+                 # Active
+                 # Check if we should update bids (optional, but good)
+                 # Only if it's been a while? Or just verify logic from old script
+                 pass 
+                 # Original script had logic here to update active listings.
+                 # Let's check logic:
+                 # if dead_dt and diff_hours is not None and diff_hours < 0: ...
+                 
+                 logger.debug(f"Active: {pid}, ends in {-diff_hours:.1f}h")
+                 # We can update active stats
+                 try:
+                     bid_info = scraper.get_bid_info(pid)
+                     if bid_info["estimated_value"] > 0: records[i]["estimated_value"] = bid_info["estimated_value"]
+                     records[i]["bids_count"] = bid_info["bids_count"]
+                     if bid_info["bids_avg"]: records[i]["bids_avg"] = bid_info["bids_avg"]
+                     if bid_info["deadline"] != "N/A": records[i]["deadline"] = bid_info["deadline"]
+                     updates_count += 1
+                 except: pass
+
+            # PHASE 2: Completed (> 0h)
+            # Check if recent and missing price
+            elif diff_hours > 0: # Expired
+                 # If we don't have price yet
+                 if not last_price or str(last_price) == "0":
+                      # If it expired recently (e.g. < 24h) to avoid checking 5 year old players
+                      # Original: diff_hours > 2 (Wait 2 hours)
+                      
+                      if diff_hours > 2: # Wait for system to process
+                           logger.info(f"Checking Final Price: {pid} (Expired {diff_hours:.1f}h ago)")
+                           price = scraper.get_player_history(pid)
+                           
+                           if price > 0:
+                                records[i]["last_transfer_price"] = price
+                                
+                                # Ratio
+                                text_avg = str(row.get("bids_avg", "0"))
+                                clean_avg = clean_currency(text_avg)
+                                
+                                if clean_avg > 0:
+                                     records[i]["sale_to_bid_ratio"] = round(price / clean_avg, 2)
+                                else:
+                                     records[i]["sale_to_bid_ratio"] = 0
+                                
+                                updates_count += 1
+                                logger.info(f"  -> Sold: {price}")
+                           else:
+                                logger.debug("  -> No transfer found.")
+
+    except Exception as e:
+        logger.error(f"Updater Error: {e}")
     finally:
         scraper.stop()
         
-    # 3. Save Updates
     if updates_count > 0:
-        print(f"Updating {updates_count} records in sheet...")
-        headers = list(records[0].keys())
-        
-        # Prepare data list
-        data_to_upload = [headers]
-        for r in records:
-            data_to_upload.append([r.get(h, "") for h in headers])
-            
-        worksheet.update(data_to_upload, value_input_option="USER_ENTERED")
-        print("Update complete.")
+        logger.info(f"Updating {updates_count} rows...")
+        # Prepare headers
+        if records:
+            headers = list(records[0].keys())
+            data = [headers] + [[r.get(h, "") for h in headers] for r in records]
+            sheet_manager.upload_data(config.SHEET_NAME_ALL_PLAYERS, data, clear=True)
     else:
-        print("No updates needed.")
+        logger.info("No updates needed.")
 
 if __name__ == "__main__":
     main()

@@ -1,11 +1,12 @@
 from src.scrapers.base import BaseScraper
 from bs4 import BeautifulSoup
 import re
+from src.core.logger import logger
 
 class OpponentScraper(BaseScraper):
     def get_team_players(self, team_url):
         """Navigate to team page and extract all player IDs"""
-        print(f"Navigating to team page: {team_url}")
+        logger.info(f"Navigating to team page: {team_url}")
         self.page.goto(team_url)
         self.page.wait_for_load_state("networkidle")
         
@@ -14,12 +15,8 @@ class OpponentScraper(BaseScraper):
         
         player_ids = []
         
-        # DOM structure from user:
-        # Rows have class "list1" or "list2"
-        # Inside, links like "ver_jogador.asp?jog_id=XXXXXXX"
-        
         rows = soup.find_all('tr', class_=['list1', 'list2'])
-        print(f"Found {len(rows)} rows in squad table.")
+        logger.info(f"Found {len(rows)} rows in squad table.")
         
         for row in rows:
             # Find link with 'jog_id'
@@ -34,5 +31,5 @@ class OpponentScraper(BaseScraper):
                     continue
                     
         unique_ids = list(set(player_ids))
-        print(f"Found {len(unique_ids)} unique players in team.")
+        logger.info(f"Found {len(unique_ids)} unique players in team.")
         return unique_ids
