@@ -2,75 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+## [Unreleased]
 
-## [1.3.0] - 2026-01-06
+## [1.2.0] - 2026-01-13
+### Added
+- **Formal Documentation**: Added BRD, PRD, SDD, and TSD in `docs/` folder.
+- **Hourly Price Updater**: New script `update_final_prices.py` to scrape final sale prices for expired auctions.
+- **Market Ratio**: Added `sale_to_bid_ratio` column to "All Players" sheet (`Last Price / Average Bid`).
+- **GitHub Action**: Added `.github/workflows/final_prices.yml` for hourly automation.
 
 ### Changed
-- **AI Replacement**: Removed Gemini AI dependency. Now uses a **deterministic Python algorithm** to recommend trades based on strict Budget, Profit, and Time rules.
-- **Scraper Consolidation**: Merged `High Quality`, `Low Price`, and `Young Potential` scrapers into a single **Master Scraper** (`main_all_transfer.py`) that runs multiple search scenarios in one go.
-- **Legacy Removal**: Deleted deprecated scraper files (`main_high_quality.py`, `main_low_price.py`, etc.).
-- **Timezone Fix**: Fixed "Today/Tomorrow" parsing logic to correctly convert server time (UTC) to **Thailand Time (UTC+7)**, preventing valid future auctions from being filtered out.
-- **Workflow**: Removed `GEMINI_API_KEY`. Added granular dispatch options (`transfer`, `analysis`) to GitHub Actions.
-- **Debug Logging**: Added detailed statistics to Telegram messages when no trades are found (e.g., "Filtered: 10 Budget, 5 Time").
+- **Optimized Scraping**: Removed history scraping from the main loop in `scraper_all_transfer.py` to improve speed.
+- **Data Persistence**: `main_all_transfer.py` now saves `bids_avg` and `deadline` to the historical "All Players" sheet.
+- **Refactoring**: Moved history scraping logic to a dedicated `get_player_history` method.
 
-## [1.2.1] - 2025-12-27
-
-### Changed
-- **Team Info Scraper**: Added `main_team_info.py` to extract team stats/financials and **upload to Google Sheets**
-- **Opponent Scout**: Added `main_opponent_scout.py` to scrape an entire opponent's squad by Team URL/ID and add them to the "All Players" sheet
-- **All Transfer Scraper**: Added `scraper_all_transfer.py` to scrape ALL players with dynamic skills and **upsert logic** (updates existing players, adds new ones, keeps history)
-- **AI Upgrade**: AI now considers **Available Funds** from Team Info sheet to suggest affordable comparisons
-- **Workflow**: Renamed `both` option to `all` and added **Team Info Scraper** to the automated schedule
-- **AI Strategy**: Updated AI prompt to "Ruthless Day Trader" focusing on immediate profit flips
-- **Schedule**: Updated GitHub Actions to run **twice daily** (07:30 AM & 07:30 PM Thailand Time)
-- **Environment**: Added AI credential variables to `.env.example`
-
-## [1.2.0] - 2025-12-27
-
+## [1.1.0] - 2026-01-07
 ### Added
-- **GitHub Actions Workflow**: Automated daily scraping at 7:30 AM Thailand time
-  - Supports manual trigger with scraper type selection
-  - Auto-installs Playwright browsers in CI environment
-  - Uploads CSV results as artifacts (30-day retention)
-- **Headless Mode Detection**: Scrapers automatically run in headless mode when in CI environment
-- **Last Updated Timestamp**: Added `last_updated` column to CSV and Google Sheets output
-- **Young Potential Scraper**: Added new scraper for players < 20 years old with high potential (> Good)
-- **AI Transfer Assistant**: Added `ai_recommendation.py` to analyze results with Google Gemini and send daily "Best Deal" picks to Telegram
-- Added `.env` support for Telegram and Gemini credentials
-- Added `gspread` and `google-auth` to requirements.txt
+- **AI Recommendations**: `ai_recommendation.py` now includes logic for filtering high-profit trades.
+- **Telegram Integration**: Added alerts for top trade signals.
 
-### Changed
-- **Sorting Logic**: Changed result sorting from ROI to **Value Difference** (Descending)
-- **Timestamp**: `last_updated` column now uses Thailand Time (UTC+7) instead of UTC
-- Updated README with GitHub Actions setup instructions
-- Updated README with Google Sheets integration documentation
-
-## [1.1.0] - 2025-12-25
-
-### Added
-- **Value Diff Column**: Added `value_diff` column to both scrapers
-- **ROI Calculation**: Calculate Return on Investment percentage
-- **Buy Price Logic**: Uses max of asking price and bids average for accurate ROI
-
-## [1.0.0] - 2025-12-22
-
-### Added
-- **High Quality Scraper**: New scenario for players with Quality > Very Good (7)
-- **Google Sheets Integration**: Auto-upload results to Google Sheets
-- Separate output files for each scraper type
-
-## [0.2.0] - 2025-12-21
-
-### Added
-- `.gitignore` file for version control
-- `.env.example` template
-
-## [0.1.0] - 2025-12-18
-
-### Added
-- Initial release
-- **Low Price Scraper**: Find players with Age < 31, Price <= 20,000
-- Auto-pagination through all search results
-- Deep extraction of player negotiation data
-- CSV export functionality
+## [1.0.0] - 2025-12-25
+### Initial Release
+- Basic scraping functionality.
+- Google Sheets integration.
+- `main_all_transfer.py` active.

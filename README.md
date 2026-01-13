@@ -19,6 +19,15 @@ A Python-based toolset for automating player scouting, market analysis, and tran
 - **Integrations**:
   - **Google Sheets**: Upserts player data to "All Players" and replaces "Transfer Info" for real-time market tracking.
   - **Telegram Bot**: Sends automated alerts for the top 15 day-trade signals.
+- **History Tracking**:
+  - **Final Price Scraping**: Automatically records the final sold price after auctions end.
+  - **Market Ratios**: Calculates `Sale Price / Scout Estimate` ratio to gauge market heat.
+
+## 📚 Documentation
+- [Business Requirements (BRD)](docs/BRD.md)
+- [Product Requirements (PRD)](docs/PRD.md)
+- [System Design (SDD)](docs/SDD.md)
+- [Technical Specs (TSD)](docs/TSD.md)
 
 ## 🛠️ Tech Stack
 
@@ -60,13 +69,13 @@ A Python-based toolset for automating player scouting, market analysis, and tran
 ### 1. Run the Scraper
 Scrapes the transfer market and updates `transfer_targets_all.csv` and Google Sheets.
 ```bash
-python main_all_transfer.py
+python ai_recommendation.py
 ```
 
-### 2. Run Recommendations
-Analyzes the scraped data (from Google Sheets), applies filters (Budget, Profit, Deadline), and sends the top picks to Telegram.
+### 3. Run Hourly Updater
+Checks for players whose auctions have recently ended, scrapes their final sale price, and updates the historical database.
 ```bash
-python ai_recommendation.py
+python update_final_prices.py
 ```
 
 ## 📂 Project Structure
@@ -96,6 +105,7 @@ graph TD
 | :--- | :--- |
 | `main_all_transfer.py` | Main entry point for the scraping process. Manages login, search scenarios, and data upload. |
 | `scraper_all_transfer.py` | Contains the `AllTransferScraper` class with methods for login, searching, and parsing player details. |
+| `update_final_prices.py` | Runs hourly to harvest final sale prices and calculate market ratios. |
 | `ai_recommendation.py` | Reads data from Google Sheets, applies investment logic, and sends Telegram notifications. |
 | `main_team_info.py` | Scrapes current team status (funds, roster) to update "Team Info" sheet. |
 | `requirements.txt` | Python dependency list. |
