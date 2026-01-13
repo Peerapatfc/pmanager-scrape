@@ -136,8 +136,19 @@ def main():
                     price = scraper.get_player_history(pid)
                     if price > 0:
                         records[i]["last_transfer_price"] = price
+                        
+                        # Calculate Ratio
+                        bids_avg_str = str(row.get("bids_avg", "0")).replace(",", "").replace(".", "")
+                        if bids_avg_str.isdigit() and int(bids_avg_str) > 0:
+                             bids_avg = int(bids_avg_str)
+                             ratio = price / bids_avg
+                             records[i]["sale_to_bid_ratio"] = round(ratio, 2)
+                             print(f"  -> Sold for: {price:,} | Ratio: {ratio:.2f}")
+                        else:
+                             records[i]["sale_to_bid_ratio"] = 0
+                             print(f"  -> Sold for: {price:,} | Ratio: N/A")
+                        
                         updates_count += 1
-                        print(f"  -> Sold for: {price:,}")
                     else:
                         print("  -> No transfer recorded yet.")
                 except Exception as e:

@@ -214,7 +214,7 @@ def main():
                 # SHEET 1: All Players (Attributes - Upsert)
                 # Filter strictly for attribute columns + ID. Exclude financial data.
                 drop_cols = ["estimated_value", "asking_price", "buy_price", "value_diff", 
-                             "roi", "bids_count", "bids_avg", "forecast_sell"]
+                             "roi", "bids_count", "forecast_sell"]
                 
                 # Keep only columns that are NOT in drop_cols (but keep if they exist)
                 attr_cols = [c for c in df.columns if c not in drop_cols]
