@@ -134,7 +134,7 @@ def main():
         # combine_first should handle it if columns existed in existing_df
         
         # Sort by updated?
-        # df_final.fillna("", inplace=True)
+        df_final.fillna("", inplace=True)
         
         sheet_manager.upload_data(config.SHEET_NAME_ALL_PLAYERS, 
                                   df_final.values.tolist(), 

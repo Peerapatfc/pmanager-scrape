@@ -21,15 +21,16 @@ def generate_message(candidates, funds_str, current_time_th):
         pid = p.get('id', '')
         buy = f"{int(p.get('asking_price', 0)):,}"
         sell = f"{int(p.get('forecast_sell', 0)):,}"
-        profit = p.get('forecast_sell', 0)
+        profit_val = p.get('net_profit', 0)
+        profit_str = f"{int(profit_val):,}"
         deadline = p.get('deadline', 'N/A')
         
         # Emoji based on profit
-        profit_icon = "🤑" if profit > 10000000 else "💵"
+        profit_icon = "🤑" if profit_val > 10000000 else "💵"
         
         entry = (
             f"{i}. *{name}*\n"
-            f"   📉 Buy: {buy} | {profit_icon} Profit: {sell}\n"
+            f"   📉 Buy: {buy} | {profit_icon} Profit: {profit_str}\n"
             f"   ⏱️ Ends: {deadline}\n"
             f"   🔗 Link: https://www.pmanager.org/comprar_jog_lista.asp?jg_id={pid}\n"
         )
@@ -85,8 +86,18 @@ def main():
                 dropped_stats["budget"] += 1
                 continue
                 
-            # Criteria 2: Profitable
-            if forecast_profit <= 0:
+            # Criteria 2: Profitable (Check Net Profit)
+            # Try to get pre-calculated 'forecast_profit' (Net Profit)
+            # Fallback: forecast_sell - asking_price
+            net_profit = 0
+            if "forecast_profit" in p and str(p["forecast_profit"]).strip():
+                 net_profit = int(p["forecast_profit"])
+            else:
+                 net_profit = int(p.get("forecast_sell", 0)) - buy_price
+            
+            p["net_profit"] = net_profit
+            
+            if net_profit <= 0:
                 dropped_stats["profit"] += 1
                 continue
                 
@@ -116,7 +127,8 @@ def main():
             continue
 
     # 4. Sort by Profit (Descending)
-    candidates.sort(key=lambda x: int(x.get("forecast_sell", 0)), reverse=True)
+    # 4. Sort by Profit (Descending)
+    candidates.sort(key=lambda x: int(x.get("net_profit", 0)), reverse=True)
     
     logger.info(f"Filter Summary: Passed={len(candidates)}, Dropped={dropped_stats}")
 
