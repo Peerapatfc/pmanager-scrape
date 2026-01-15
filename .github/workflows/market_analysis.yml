@@ -33,5 +33,7 @@ jobs:
         run: |
           python ai_recommendation.py
         env:
+          PM_USERNAME: ${{ secrets.PM_USERNAME }}
+          PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

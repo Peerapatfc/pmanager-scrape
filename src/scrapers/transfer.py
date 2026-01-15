@@ -109,29 +109,33 @@ class TransferScraper(BaseScraper):
 
              data["estimated_value"] = get_val("Estimated Transfer Value") or 0
              data["asking_price"] = get_val("Asking Price for Bid") or 0
-             dl = soup_neg.find(string="Deadline")
-             if dl:
-                 parent = dl.find_parent('td')
-                 if parent:
-                     val_td = parent.find_next_sibling('td')
-                     if val_td:
-                         data["deadline"] = val_td.get_text(strip=True, separator=" ")
-
+             
+             # Safely get deadline with proper null checks
+             deadline_node = soup_neg.find(string="Deadline")
+             if deadline_node:
+                 deadline_parent = deadline_node.find_parent('td')
+                 if deadline_parent:
+                     deadline_td = deadline_parent.find_next_sibling('td')
+                     if deadline_td:
+                         data["deadline"] = deadline_td.get_text(strip=True, separator=" ")
+             
+             # Safely get bids count with proper null checks
              bids_node = soup_neg.find(string="Bids")
              if bids_node:
-                 parent = bids_node.find_parent('td')
-                 if parent:
-                      val_td = parent.find_next_sibling('td')
-                      if val_td:
-                          data["bids_count"] = val_td.get_text(strip=True)
-                 
+                 bids_parent = bids_node.find_parent('td')
+                 if bids_parent:
+                     bids_td = bids_parent.find_next_sibling('td')
+                     if bids_td:
+                         data["bids_count"] = bids_td.get_text(strip=True)
+             
+             # Safely get bids average with proper null checks
              bids_avg_node = soup_neg.find(string="Bids Average (Scout)")
              if bids_avg_node:
-                  parent = bids_avg_node.find_parent('td')
-                  if parent:
-                       val_td = parent.find_next_sibling('td')
-                       if val_td:
-                            data["bids_avg"] = val_td.get_text(strip=True)
+                 bids_avg_parent = bids_avg_node.find_parent('td')
+                 if bids_avg_parent:
+                     bids_avg_td = bids_avg_parent.find_next_sibling('td')
+                     if bids_avg_td:
+                         data["bids_avg"] = bids_avg_td.get_text(strip=True)
 
         except Exception as e:
             logger.error(f"Error scraping financials for {player_id}: {e}")
