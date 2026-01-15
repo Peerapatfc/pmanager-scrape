@@ -10,7 +10,7 @@ def append_to_sheet(info_dict):
     """Append team info row to Google Sheets"""
     try:
         sheet_manager = SheetManager()
-        worksheet = sheet_manager.get_worksheet(sheet_name="Team Info") # Assuming this sheet name logic
+        worksheet = sheet_manager.get_worksheet(name="Team Info")  # Get the Team Info worksheet
         
         # NOTE: Using 'Team Info' from config if added, but let's assume "Team Info" string for now or add to config
         # config.SHEET_NAME_TEAM_INFO doesn't exist yet, using literal as per old script
