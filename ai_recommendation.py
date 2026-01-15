@@ -88,12 +88,9 @@ def main():
                 
             # Criteria 2: Profitable (Check Net Profit)
             # Try to get pre-calculated 'forecast_profit' (Net Profit)
-            # Fallback: forecast_sell - asking_price
             net_profit = 0
             if "forecast_profit" in p and str(p["forecast_profit"]).strip():
                  net_profit = int(p["forecast_profit"])
-            else:
-                 net_profit = int(p.get("forecast_sell", 0)) - buy_price
             
             p["net_profit"] = net_profit
             
