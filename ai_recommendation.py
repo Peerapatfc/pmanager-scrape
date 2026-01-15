@@ -80,8 +80,8 @@ def main():
             forecast_profit = int(p.get("forecast_sell", 0))
             deadline_str = str(p.get("deadline", ""))
             
-            # Criteria 1: Affordable
-            if buy_price > current_funds:
+            # Criteria 1: Affordable & Within Cap
+            if buy_price > current_funds or buy_price > 30000000:
                 dropped_stats["budget"] += 1
                 continue
                 

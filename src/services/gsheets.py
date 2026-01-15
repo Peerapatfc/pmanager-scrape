@@ -23,11 +23,11 @@ class SheetManager:
             logger.error(f"Failed to connect to Google Sheets: {e}")
             raise
 
-    def get_worksheet(self, name):
+    def get_worksheet(self, sheet_name):
         try:
-            return self.spreadsheet.worksheet(name)
+            return self.spreadsheet.worksheet(sheet_name)
         except gspread.WorksheetNotFound:
-            logger.error(f"Worksheet '{name}' not found.")
+            logger.error(f"Worksheet '{sheet_name}' not found.")
             raise
 
     def upload_data(self, sheet_name, data, columns=None, clear=True):

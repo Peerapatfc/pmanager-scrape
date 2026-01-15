@@ -109,15 +109,29 @@ class TransferScraper(BaseScraper):
 
              data["estimated_value"] = get_val("Estimated Transfer Value") or 0
              data["asking_price"] = get_val("Asking Price for Bid") or 0
-             data["deadline"] = soup_neg.find(string="Deadline").find_parent('td').find_next_sibling('td').get_text(strip=True, separator=" ") if soup_neg.find(string="Deadline") else "N/A"
-             
+             dl = soup_neg.find(string="Deadline")
+             if dl:
+                 parent = dl.find_parent('td')
+                 if parent:
+                     val_td = parent.find_next_sibling('td')
+                     if val_td:
+                         data["deadline"] = val_td.get_text(strip=True, separator=" ")
+
              bids_node = soup_neg.find(string="Bids")
              if bids_node:
-                 data["bids_count"] = bids_node.find_parent('td').find_next_sibling('td').get_text(strip=True)
+                 parent = bids_node.find_parent('td')
+                 if parent:
+                      val_td = parent.find_next_sibling('td')
+                      if val_td:
+                          data["bids_count"] = val_td.get_text(strip=True)
                  
              bids_avg_node = soup_neg.find(string="Bids Average (Scout)")
              if bids_avg_node:
-                  data["bids_avg"] = bids_avg_node.find_parent('td').find_next_sibling('td').get_text(strip=True)
+                  parent = bids_avg_node.find_parent('td')
+                  if parent:
+                       val_td = parent.find_next_sibling('td')
+                       if val_td:
+                            data["bids_avg"] = val_td.get_text(strip=True)
 
         except Exception as e:
             logger.error(f"Error scraping financials for {player_id}: {e}")

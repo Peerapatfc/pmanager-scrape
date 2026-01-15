@@ -104,7 +104,7 @@ graph TD
 | File | Description |
 | :--- | :--- |
 | `main_all_transfer.py` | Main entry point for the scraping process. Manages login, search scenarios, and data upload. |
-| `scraper_all_transfer.py` | Contains the `AllTransferScraper` class with methods for login, searching, and parsing player details. |
+
 | `update_final_prices.py` | Runs hourly to harvest final sale prices and calculate market ratios. |
 | `ai_recommendation.py` | Reads data from Google Sheets, applies investment logic, and sends Telegram notifications. |
 | `main_team_info.py` | Scrapes current team status (funds, roster) to update "Team Info" sheet. |

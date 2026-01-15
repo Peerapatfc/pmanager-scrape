@@ -38,6 +38,16 @@ def main():
                      
                  # Forecast Sell
                  details["forecast_sell"] = (est / 2) * 0.8
+                 
+                 # Forecast Profit
+                 # profit = forecast_sell - cost_price
+                 # cost_price = max(asking_price, bids_avg)
+                 bids_avg = 0
+                 if "bids_avg" in details:
+                     bids_avg = clean_currency(str(details["bids_avg"]))
+                 
+                 cost_price = max(ask, bids_avg)
+                 details["forecast_profit"] = details["forecast_sell"] - cost_price
             
             all_results.append(details)
             
@@ -81,7 +91,7 @@ def main():
     # Transfer Info Upload
     market_cols = ["id", "name", "position", "age", "Quality", "Potential", 
                    "estimated_value", "asking_price", "value_diff", "roi", 
-                   "forecast_sell", "deadline", "url"]
+                   "forecast_sell", "forecast_profit", "deadline", "url"]
                    
     # Ensure cols exist
     existing_mcols = [c for c in market_cols if c in df.columns]
