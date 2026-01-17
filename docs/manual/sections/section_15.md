@@ -1,0 +1,7 @@
+# 15. Economy & Sponsors
+The weekly economical update occurs on Friday at 8:00am (server time). At that time, all wages, stadium maintenance costs and youth academy expenses are paid. If at that moment, your funds are less than -100000€, the board's confidence in you will fall (20% if you have more than -200000€ and 40% if you have less than -200000€). However, if your funds are positive then the board's confidence will rise slightly (5%).
+
+In the event that your board's confidence is less than 10% and your funds are less than €-200000 at the moment of the economical update, you will receive a warning of pre-bankruptcy. If you fail to fix your financial situation by the next week's financial update then you will be sacked due to bankruptcy. You will then be placed back on the waiting list for your country until a new team is available for you to manage.
+Sponsor System
+
+By accessing the Team > Sponsors menu, you will have access to a list of one or more possible sponsor deals for your club. Each sponsor deal will have a goal and a sponsor bonus. If you reach that goal at the end of the season, you will receive that bonus. Each "special" sponsor will pay you a bit less on a weekly basis, and it’s up to you to decide if you want to go all out for that goal or just keep getting the same weekly amount as usual (for that, you can skip the sponsor deals altogether and keep the "default" sponsor).

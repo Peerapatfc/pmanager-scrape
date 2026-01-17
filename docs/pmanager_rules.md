@@ -1,0 +1,41 @@
+# Planetarium Manager Manual - Index
+
+This is the comprehensive guide to Planetarium Manager rules. The manual has been split into individual sections for easier navigation and editing.
+
+## Table of Contents
+
+### Detailed Sections
+1. [Introduction](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_01.md)
+2. [PManager Computer Requirements](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_02.md)
+3. [Registration, activation and team selection](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_03.md)
+4. [User Interface](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_04.md)
+5. [First Steps](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_05.md)
+6. [Strategies](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_06.md)
+7. [Players & Talents](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_07.md)
+8. [Training System](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_08.md)
+9. [The Squad & 2nd/3rd Teams](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_09.md)
+10. [Academy and Youth Players](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_10.md)
+11. [Transfers](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_11.md)
+12. [Stadium](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_12.md)
+13. [Tactics](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_13.md)
+14. [The Match](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_14.md)
+15. [Economy & Sponsors](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_15.md)
+16. [Team Staff](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_16.md)
+17. [Teams](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_17.md)
+18. [The Manager & Job Center](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_18.md)
+19. [Inactivity](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_19.md)
+20. [Series System](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_20.md)
+21. [Season Prizes](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_21.md)
+22. [National Cup](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_22.md)
+23. [Friendly Matches & Instant Matches](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_23.md)
+24. [PM Cups](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_24.md)
+25. [International Team Competitions](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_25.md)
+26. [National Federations & National Teams](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_26.md)
+27. [PM Coins & PM Fan](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_27.md)
+28. [Community](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_28.md)
+29. [Behavior](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_29.md)
+30. [Manager's Certificate & Mentorship System](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_30.md)
+31. [PMDD](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_31.md)
+32. [Game Administration](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_32.md)
+33. [PManager Week](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_33.md)
+34. [Denominations](file:///d:/Work/Meaw%20-%20Q/Scraper/pmanager-scrape/docs/manual/sections/section_34.md)

@@ -1,0 +1,43 @@
+# 16. Team Staff
+The following staff members are available to hire: Assistant Manager, Scout, Physio and Coach. All teams start with no staff at all, and it is your responsibility to hire the staff members that you desire (as long as your wage roof allows it). Staff wages will be very expensive. Specifically, Assistant Managers and Coaches as they will have a direct influence on training. Staff wages are automatically adjusted at the end of each season; you won’t be required to discuss contracts with them at all.
+
+Assistant Manager (Level 0-5)
+Assistant managers in PM4 have different functions than they had before.
+First of all, the bonus they gave to B teams’ training has been removed. It was neglectable before, and not very realistic to start with.
+Assistants will, for starters, be treated as normal coaches, if their skill level is greater than 0. That means that they will also give a training bonus depending on the skill they specialize in.
+Other than that, two new features have been implemented that are only available if you have an assistant contracted to you:
+- You will be able to set an automatic fitness training for all players depending on a set fitness level (defined by you) that will be used in the matches you also choose. That means that, for instance, if you want players under 75% fitness to train their fitness level during league matches, they will do so automatically.
+- A new page has been set up that will be of extreme usefulness mostly to newbie players. In that page you will be able to ask your assistant manager for advice on the starting eleven you should field with your current tactical choices. The assistant will then pick out their perceived best eleven for you, and you will be able to automatically set it as your default starting eleven. Remember though that the assistant help is far from being the "best choice" in some cases; they won’t take in consideration advanced tactics and might be in trouble if there are too few players in your team. There is also a minor "noise factor" in the skill of players that is perceived by the assistant (regardless of the assistant’s skill level) so that the assistant might not be able to tell at times who’s the best out of two similar players. This is to avoid this new help feature from being a way to find out who’s the best player out of two, in those special cases.
+
+Assistant Managers will also be able to include an outside player in his starting eleven recommendation. This will be especially useful for players in the transfer list that on you have an eye on.
+You will be able to hire assistants of level "zero". In this case, as mentioned before, they won’t contribute to the team’s training, but all other assistant features will be available to you. His wage will also be significantly lower. This will hopefully help boost the use of these assistant help features by newbie players, at a very low cost to them.
+You can only have one Assistant Manager.
+
+Coach (Level 1-5)
+You’ll be able to hire coaches to train a specific skill as an aditional “global training”. Coaches have five levels of quality (1-5). A level 5 coach equals a normal 100% global training. So basically, you can have as many global trainings as you can afford. We remind you that with global training a player trains at 100% of his potential, instead of 75% with “regular” training.
+You can hire as many coaches as your wage roof allows you. Coaches are normally (very) expensive (specially higher level coaches) and their wage is even higher on the higher divisions.
+
+Physio (Level 1-5)
+Physios have a very simply task. They will decrease the recovery time of your injured players. The better the physio is, the shorter the recovery time will be; simple as that. You cannot have more than one physio contracted to you at the same time.
+
+Scout (Level 1-5)
+We have completely redesigned the way scouts work in PM. Until now they were rather useless, since their only noteworthy ability was the chance to see the quality and potential of players not contracted to you. This will, however, change a lot for PM4.
+The old ability of scouts to see the quality and potential has been removed. You don’t need a scout anymore to do it, and the randomness of the perceived quality has also been removed (the perceived quality is always correct).
+The new scouting abilities are much more interesting and a great change on the way the game works. A new feature that has been introduced is the ability to send your scouts to scout a certain player. The scout will then be off scouting, and, depending on a series of factors, return with a perceived quality of some of the player’s skills.
+
+- The better the scout, the higher the number of skills it will retrieve from the scouted player. A level 1 scout will only retrieve 1 skill, while a level 5 scout will retrieve 5 skills.
+- The skills retrieved are chosen completely at random. Your scout might be able to tell the player’s speed and strength, or its passing and positioning abilities, for instance. You cannot choose which skills you want to be scouted. A higher quality scout will obviously be more useful, since the number of skills retrieved (in the same period of time) is greater.
+- The skills retrieved are not in their exact level, however. The scout will be able to tell you if the skill is in one of 4 ranges: 0-5, 5-10, 10-15 and 15-20. The range will be always correct, though.
+- The time the scout takes to finish his scouting task is always the same, regardless of their skill. It can however change depending on other factors (explained below).
+
+A scout will do his task by scouting the players’ owner club training sessions and matches. Since we wanted to give the owners a chance to protect their players from being scouted, a new feature has come along with the scout changes: It will now be possible for a team to "train behind closed doors". In effect it will prevent other clubs’ scouts from scouting your training sessions. The downside from it is that it might anger your supporters, directly affecting the number you gain (or lose) per week. You will be able to change whether you train behind closed doors or not once per day, and for the rest of the day the option will be locked. Whether it will anger supporters or not will depend of the number of closed door sessions you’ve made at the end of the week. If the number of closed doors sessions surpasses the number of open door sessions, supporters will be angry. Otherwise, they will be ok with it.
+If a scout has been seen at your stadium, whether during a match or a training session, you will be informed about it. It may help you decide whether you want to train behind closed doors or not.
+But, let’s get back to the scouting process. If a scout is not able to perform his task during training sessions, he will instead scout players during matches.
+A scout’s task duration has a fixed value of 5 days, regardless of skill. During those 5 days, he will, as explained before, try to watch the player during training sessions and during matches. If he is able to scout the player in an open doors training (matches don’t count) during its first 3 days on the job, he will return sooner, however. If not, he will remain for the full 5 days. If he is able to scout a) any training session or b) any match, he will always retrieve his scouting report. If, however, he’s not able to scout the player during training sessions (because the club trained behind closed doors) or during a match, he will not retrieve anything at all. During the whole time he’s on his task, you will be informed of the progress he has made, and, if you want, cancel the scouting if no progress has been made. If, however, the progress has been positive (he was able to scout the player during a training session or a match), you will have to wait until the scout compiles the report to have him back available again.
+
+How do I hire Staff?
+To hire Staff, go to Team >> Staff then on the right hand side of the screen, select “Hire Staff”. Once you click this, you'll have two options:
+- Function – type of Staff member (Scout, Coach, etc) – the specific type of Staff will affect the wage calculation;
+Quality – the level of the specific Staff member you want to buy (0-5 for Assistants and 1-5 for the others) – the quality will affect the wage calculation
+
+After you click “Next”, you will have the option to review the Staff member you are about to hire. Make absolutely sure that both the Staff member's function and his quality are exactly what you want before clicking “Hire”. We will not reimburse you for errors on your part...especially when we give you the option to review your purchase twice (the second confirmation is a pop-up).
