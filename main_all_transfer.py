@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from datetime import datetime
 from src.config import config
 from src.core.logger import logger
@@ -63,6 +64,20 @@ def main():
     # 2. Process Data
     df = pd.DataFrame(all_results)
     
+    # Clean Data before any usage (Fix JSON compliance issues)
+    # Replace Infinity with 0
+    df.replace([np.inf, -np.inf], 0, inplace=True)
+    # Fill NaN with 0 for numeric/general safety before JSON serialization
+    # Ideally, we should apply this selectively, but for this scraper 0 is safe for missing metrics.
+    # However, strings might need "", let's be careful.
+    # For now, let's fillna(0) for calculations, but let's do it on specific numeric cols if possible.
+    # Or just handle it at export.
+    # The error "Out of range float values" is strictly Inf/NaN in floats.
+    
+    # Explicitly handle numeric columns regarding NaN/Inf again to be sure
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    df[numeric_cols] = df[numeric_cols].fillna(0)
+    
     # Save CSV
     csv_file = "transfer_targets_all.csv"
     df.to_csv(csv_file, index=False)
@@ -98,6 +113,9 @@ def main():
     df_market = df[existing_mcols].copy()
     df_market['last_updated'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
+    # CLEAN BEFORE UPLOAD (JSON compliance)
+    df_market = df_market.fillna("") # Fill NaN with empty string for display/upload
+    
     sheet_manager.upload_data(config.SHEET_NAME_TRANSFER_INFO, 
                               df_market.values.tolist(), 
                               columns=df_market.columns.tolist())
@@ -110,14 +128,33 @@ def main():
         existing_records = sheet_manager.get_all_records(config.SHEET_NAME_ALL_PLAYERS)
         existing_df = pd.DataFrame(existing_records)
         if not existing_df.empty:
+             # Ensure 'id' is string in both to prevent "Invalid value for dtype 'str'"
+             # existing_df might have IDs as ints if they look like numbers.
              existing_df['id'] = existing_df['id'].astype(str)
-             df_attributes['id'] = df_attributes['id'].astype(str)
+             
+             # Clean df_attributes 'id'
+             df_attributes['id'] = df_attributes['id'].fillna("").astype(str)
+             # Filter out any empty IDs just in case
+             df_attributes = df_attributes[df_attributes['id'] != ""]
              
              # Set index to ID for easy update
              existing_df.set_index('id', inplace=True)
              df_attributes.set_index('id', inplace=True)
              
              # Update existing with new values
+             # Note: df_attributes might still have NaNs if we didn't fill them globally
+             # Let's fill NaNs before updating to ensure we don't overwrite existing valid data with NaNs if that's undesired, 
+             # OR if we want to overwrite, we must ensure they are not float NaNs which pandas might issue on.
+             # However, update() usually works fine with NaNs (it ignores them), 
+             # bUT if the new data has explicit None/NaN from scrape, we might want to overwrite.
+             # Assuming scrape is authoritative for current state.
+             
+             # To solve "Invalid value for dtype 'str'": 
+             # It usually happens if we try to put a float/int into a string-only column during combine/update or vice versa.
+             # We should probably force everything to object or string if we are unsure.
+             # But let's try just ensuring the update data is clean.
+             df_attributes = df_attributes.fillna("") 
+             
              existing_df.update(df_attributes)
              
              # Combine (this adds new rows that weren't in existing)
@@ -129,12 +166,15 @@ def main():
              df_final = combined.reset_index()
         else:
              df_final = df_attributes
+             df_final['id'] = df_final['id'].astype(str) # Ensure string
 
         # Ensure 'sale_to_bid_ratio' and 'last_transfer_price' are preserved if they existed
         # combine_first should handle it if columns existed in existing_df
         
         # Sort by updated?
-        df_final.fillna("", inplace=True)
+        # Clean again for JSON compliance before upload
+        df_final = df_final.fillna("")
+        df_final = df_final.replace([np.inf, -np.inf], 0)
         
         sheet_manager.upload_data(config.SHEET_NAME_ALL_PLAYERS, 
                                   df_final.values.tolist(), 
