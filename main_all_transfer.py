@@ -176,6 +176,16 @@ def main():
         df_final = df_final.fillna("")
         df_final = df_final.replace([np.inf, -np.inf], 0)
         
+        # Convert numpy types to native Python types to avoid
+        # "Invalid value for dtype 'int64'" errors from Sheets API.
+        # combine_first can produce numpy scalars that serialize badly.
+        for col in df_final.columns:
+            df_final[col] = df_final[col].apply(
+                lambda x: int(x) if isinstance(x, (np.integer,)) 
+                else float(x) if isinstance(x, (np.floating,)) 
+                else x
+            )
+        
         sheet_manager.upload_data(config.SHEET_NAME_ALL_PLAYERS, 
                                   df_final.values.tolist(), 
                                   columns=df_final.columns.tolist())
