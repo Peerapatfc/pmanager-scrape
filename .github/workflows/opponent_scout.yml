@@ -31,14 +31,12 @@ jobs:
         playwright install chromium
         playwright install-deps chromium
 
-    - name: Create credentials.json
-      run: |
-        echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
-
     - name: Create .env file
       run: |
         echo "PM_USERNAME=${{ secrets.PM_USERNAME }}" >> .env
         echo "PM_PASSWORD=${{ secrets.PM_PASSWORD }}" >> .env
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+        echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
         echo "CI=true" >> .env
 
     - name: Run Opponent Scout

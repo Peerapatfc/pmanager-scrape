@@ -34,10 +34,8 @@ jobs:
         run: |
           echo "PM_USERNAME=${{ secrets.PM_USERNAME }}" >> .env
           echo "PM_PASSWORD=${{ secrets.PM_PASSWORD }}" >> .env
-      
-      - name: Create Google credentials file
-        run: |
-          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+          echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
       
       - name: Run Update Script
         run: |

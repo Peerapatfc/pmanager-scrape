@@ -25,15 +25,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
-      - name: Create Google credentials file
+      - name: Create .env file
         run: |
-          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+          echo "PM_USERNAME=${{ secrets.PM_USERNAME }}" >> .env
+          echo "PM_PASSWORD=${{ secrets.PM_PASSWORD }}" >> .env
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+          echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
       
       - name: Run Market Analysis
         run: |
           python ai_recommendation.py
         env:
-          PM_USERNAME: ${{ secrets.PM_USERNAME }}
-          PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

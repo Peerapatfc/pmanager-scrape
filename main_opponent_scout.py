@@ -2,7 +2,7 @@ import sys
 from src.config import config
 from src.core.logger import logger
 from src.scrapers.opponent import OpponentScraper
-from src.services.gsheets import SheetManager
+from src.services.supabase_client import SupabaseManager
 
 def main():
     config.validate()
@@ -25,10 +25,10 @@ def main():
 
     logger.info(f"Starting Opponent Scout (Check Mode) for: {team_url}")
     
-    # 1. Fetch Existing Data
+    # 1. Fetch Existing Data from Supabase
     logger.info("Fetching existing player database...")
-    sheet_manager = SheetManager()
-    existing_records = sheet_manager.get_all_records(config.SHEET_NAME_ALL_PLAYERS)
+    db = SupabaseManager()
+    existing_records = db.get_all_players()
     
     existing_ids = set()
     for r in existing_records:
@@ -65,9 +65,7 @@ def main():
             print(f"🚨 FOUND {len(matches)} MATCHES IN DATABASE! 🚨")
             print("The following opponent players are already on your watchlist:")
             
-            # Find details from existing records to display name
             for pid in matches:
-                # Find record
                 rec = next((r for r in existing_records if str(r.get('id')) == str(pid)), None)
                 name = rec.get('name', 'Unknown') if rec else 'Unknown'
                 pos = rec.get('position', '?') if rec else '?'
