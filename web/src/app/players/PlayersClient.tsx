@@ -221,74 +221,63 @@ export default function PlayersClient() {
           </div>
         )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-neutral-400 uppercase bg-neutral-950/50 border-b border-neutral-800">
+        <div className="overflow-x-auto max-h-[600px] 2xl:max-h-[800px] border-t border-neutral-800 custom-scrollbar">
+          <table className="w-full text-sm text-left border-collapse whitespace-nowrap">
+            <thead className="text-xs text-neutral-400 uppercase bg-neutral-950 sticky top-0 z-20 shadow-sm">
               <tr>
-                <th scope="col" className="px-6 py-4 font-semibold">Name</th>
-                <th scope="col" className="px-6 py-4 font-semibold">Pos</th>
-                <th scope="col" className="px-6 py-4 font-semibold">Age</th>
-                <th scope="col" className="px-6 py-4 font-semibold">Quality</th>
-                <th scope="col" className="px-6 py-4 font-semibold">Potential</th>
-                <th scope="col" className="px-6 py-4 font-semibold">Nationality</th>
-                <th scope="col" className="px-6 py-4 font-semibold">Skills</th>
+                <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Name</th>
+                <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Pos</th>
+                <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Age</th>
+                <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Quality</th>
+                <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Potential</th>
+                <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Nationality</th>
+                {allSkills.map(s => (
+                  <th key={s} scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800 text-center whitespace-nowrap min-w-[70px]">
+                    <span title={s} className="truncate block cursor-help">{s.substring(0, 4)}</span>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-800/60">
               {players.map((player) => (
-                <tr key={player.id} className="hover:bg-neutral-800/50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-white flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold shrink-0">
-                      {player.name?.charAt(0) || '?'}
-                    </div>
-                    <div className="flex flex-col">
-                      {player.url ? (
-                        <a href={player.url} target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 hover:underline">
-                          {player.name}
-                        </a>
-                      ) : (
-                        player.name
-                      )}
-                      <span className="text-neutral-500 text-[10px] font-mono leading-tight mt-0.5">#{player.id}</span>
+                <tr key={player.id} className="hover:bg-neutral-800/60 transition-colors even:bg-neutral-900/40">
+                  <td className="px-4 py-3 font-medium text-white border-r border-neutral-800/60">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold shrink-0">
+                        {player.name?.charAt(0) || '?'}
+                      </div>
+                      <div className="flex flex-col">
+                        {player.url ? (
+                          <a href={player.url} target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 hover:underline">
+                            {player.name}
+                          </a>
+                        ) : (
+                          player.name
+                        )}
+                        <span className="text-neutral-500 text-[10px] font-mono leading-tight mt-0.5">#{player.id}</span>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-3 border-r border-neutral-800/60">
                     <span className="px-2.5 py-1 rounded-md bg-neutral-800 text-neutral-300 text-xs font-medium border border-neutral-700/50">
                       {player.position}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-neutral-300">{player.age}</td>
-                  <td className="px-6 py-4 text-emerald-400 font-medium">{player.quality}</td>
-                  <td className="px-6 py-4 text-cyan-400 font-medium">{player.potential}</td>
-                  <td className="px-6 py-4 text-neutral-300">{player.nationality}</td>
-                  <td className="px-6 py-4 h-full relative" style={{ maxWidth: '300px' }}>
-                    <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto pr-2 custom-scrollbar">
-                      {player.skills && Object.keys(player.skills).length > 0 ? (
-                        Object.entries(player.skills).map(([skill, value]) => {
-                          const isHighlighted = (filterSkill === skill) || (sortField === `skill:${skill}`);
-                          return (
-                            <span 
-                              key={skill} 
-                              className={`px-2 py-[2px] rounded text-[10px] font-medium flex items-center gap-1 border transition-colors ${
-                                isHighlighted 
-                                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' 
-                                  : 'bg-neutral-800/80 border-neutral-700 text-neutral-300'
-                              }`}
-                            >
-                              <span className={isHighlighted ? 'text-emerald-400' : 'text-white/60'}>
-                                {skill}
-                              </span>
-                              <span className={isHighlighted ? 'text-emerald-300 font-bold' : 'text-emerald-400'}>
-                                {String(value)}
-                              </span>
-                            </span>
-                          );
-                        })
-                      ) : (
-                        <span className="text-neutral-600 text-xs italic">No skills</span>
-                      )}
-                    </div>
-                  </td>
+                  <td className="px-4 py-3 text-neutral-300 border-r border-neutral-800/60">{player.age}</td>
+                  <td className="px-4 py-3 text-emerald-400 font-medium border-r border-neutral-800/60">{player.quality}</td>
+                  <td className="px-4 py-3 text-cyan-400 font-medium border-r border-neutral-800/60">{player.potential}</td>
+                  <td className="px-4 py-3 text-neutral-300 border-r border-neutral-800/60 bg-neutral-900/40">{player.nationality}</td>
+                  {allSkills.map((skill) => {
+                    const value = player.skills?.[skill];
+                    const isHighlighted = (filterSkill === skill) || (sortField === `skill:${skill}`);
+                    return (
+                      <td key={skill} className={`px-4 py-3 text-center border-r border-neutral-800/60 font-medium ${
+                        isHighlighted ? 'bg-emerald-500/10 text-emerald-300' : 'text-neutral-400'
+                      }`}>
+                        {value !== undefined ? value : '-'}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
               {!loading && players.length === 0 && (
