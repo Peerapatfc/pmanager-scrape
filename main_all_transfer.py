@@ -83,7 +83,7 @@ def main():
     df_market['last_updated'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     transfer_records = df_market.to_dict(orient="records")
-    db.upsert_transfer_listings(transfer_records)
+    db.replace_transfer_listings(transfer_records)
 
     # All Players (Attributes)
     drop_cols = ["estimated_value", "asking_price", "buy_price", "value_diff", 

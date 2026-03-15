@@ -91,8 +91,8 @@ class SupabaseManager:
 
     # ── Transfer Listings (replaces "Transfer Info" sheet) ──
 
-    def upsert_transfer_listings(self, records: list[dict]):
-        """Batch upsert transfer listing records."""
+    def replace_transfer_listings(self, records: list[dict]):
+        """Batch replace transfer listing records."""
         COL_MAP = {
             "id": "id",
             "name": "name",
@@ -145,15 +145,23 @@ class SupabaseManager:
         
         if not rows:
             return
+            
+        try:
+            # First, delete all existing transfer listings so we do a full replace
+            logger.info("Clearing existing transfer listings...")
+            self.client.table("transfer_listings").delete().neq("id", "0").execute()
+        except Exception as e:
+            logger.error(f"Failed to clear old transfer_listings: {e}")
         
+        # Then, insert the new records in batches
         for i in range(0, len(rows), 500):
             batch = rows[i:i + 500]
             try:
-                self.client.table("transfer_listings").upsert(batch).execute()
+                self.client.table("transfer_listings").insert(batch).execute()
             except Exception as e:
-                logger.error(f"Failed to upsert transfer_listings batch {i}: {e}")
+                logger.error(f"Failed to insert transfer_listings batch {i}: {e}")
         
-        logger.info(f"Upserted {len(rows)} rows to 'transfer_listings'")
+        logger.info(f"Replaced {len(rows)} rows in 'transfer_listings'")
 
     def get_all_transfer_listings(self) -> list[dict]:
         """Fetch all transfer listing records."""
