@@ -2,8 +2,8 @@ name: Bot Scout Scraper
 
 on:
   schedule:
-    # Run once daily at 4:00 AM UTC (adjust as needed since Bot scraping is intensive)
-    - cron: '0 4 * * *'
+    # Run once a week on Friday at 4:00 AM UTC
+    - cron: '0 4 * * 5'
   
   workflow_dispatch:
 
