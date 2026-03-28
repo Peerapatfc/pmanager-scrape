@@ -13,23 +13,31 @@ class BotTeamScraper(BaseScraper):
         self.accepted_qualities = ["Excellent", "Formidable", "World Class"]
 
     def get_all_countries(self):
-        """Hardcode the top active countries using their 2-letter codes for reliable &sg=XX routing."""
-        # This guarantees we use the correct sg string parameter (e.g. SG, TH) instead of numeric values
-        return [
-            {"id": "SG", "name": "Singapore"},
-            {"id": "EN", "name": "England"},
-            {"id": "IT", "name": "Italy"},
-            {"id": "ES", "name": "Spain"},
-            {"id": "DE", "name": "Germany"},
-            {"id": "PT", "name": "Portugal"},
-            {"id": "BR", "name": "Brazil"}
-        ]
+        """Dynamically extract all active countries from the sidebar dropdown."""
+        # The dropdown is usually available on most pages, let's load ver_mundo just to be sure
+        self.page.goto(f"{self.base_url}/ver_mundo.asp")
+        
+        try:
+            self.page.wait_for_selector("#countryList", timeout=5000)
+        except:
+            logger.warning("Could not find #countryList dropdown on ver_mundo.asp")
+            
+        soup = BeautifulSoup(self.page.content(), 'html.parser')
+        country_select = soup.find('select', id='countryList')
+        
+        countries = []
+        if country_select:
+            for option in country_select.find_all('option'):
+                val = option.get('value')
+                name = option.get_text(strip=True)
+                if val and name:
+                    countries.append({"id": val, "name": name})
+                    
+        return countries
 
     def scrape_league_tree(self, max_division=None):
         """Scrape all countries and their divisions/series for bot teams."""
         countries = self.get_all_countries()
-        # Test just Singapore as requested by the user
-        countries = [c for c in countries if c['name'] == 'Singapore']
         if not countries:
             logger.warning("No countries found from dropdown.")
             return []
@@ -41,8 +49,11 @@ class BotTeamScraper(BaseScraper):
             cname = country["name"]
             logger.info(f"--- Scraping Country: {cname} (ID: {cid}) ---")
             
-            # No need for ver_pais.asp if we use sg=XX
-            current_league_url = f"{self.base_url}/classificacao.asp?dv=1&sr=1&vf=1&sg={cid}"
+            # Switch session context to the target country
+            self.page.goto(f"{self.base_url}/ver_pais.asp?action=mudar_pais&p={cid}")
+            self.page.wait_for_load_state("domcontentloaded")
+            
+            current_league_url = f"{self.base_url}/classificacao.asp?dv=1&sr=1&vf=1"
             
             while current_league_url:
                 teams, next_url = self.get_bot_teams_and_next_league(cname, current_league_url)
@@ -82,17 +93,31 @@ class BotTeamScraper(BaseScraper):
         
         bot_teams = []
         
+        # Find the league standings table
+        league_table = None
+        for table in soup.find_all('table'):
+            if table.find(lambda t: t.name in ['td', 'th'] and 'Position' in t.text):
+                league_table = table
+                break
+                
+        if not league_table:
+            league_table = soup
+            
         # The team links are either clube.asp?clube=123 or ver_equipa.asp?equipa=123
-        links = soup.find_all('a', href=re.compile(r'(clube\.asp\?clube=|ver_equipa\.asp\?equipa=)\d+', re.IGNORECASE))
+        links = league_table.find_all('a', href=re.compile(r'(clube\.asp\?clube=|ver_equipa\.asp\?equipa=)\d+', re.IGNORECASE))
         
         # Determine human vs bot
+        seen_teams = set()
         for a in links:
             team_id_match = re.search(r'(?:clube=|equipa=)(\d+)', a['href'], re.IGNORECASE)
             if not team_id_match:
                 continue
             team_id = team_id_match.group(1)
+            if team_id in seen_teams:
+                continue
+                
+            seen_teams.add(team_id)
             team_name = a.get_text(strip=True)
-            
             # Bold check: Human teams use <a><b>Name</b></a> (bold as child)
             # or <b><a>Name</a></b> (bold as parent)
             child_b = a.find(['b', 'strong'])
@@ -131,7 +156,7 @@ class BotTeamScraper(BaseScraper):
 
     def get_team_roster(self, team_id):
         """Extract player IDs from a team's roster."""
-        url = f"{self.base_url}/plantel.asp?clube={team_id}"
+        url = f"{self.base_url}/ver_equipa.asp?equipa={team_id}&vjog=1"
         self.page.goto(url)
         
         try:
