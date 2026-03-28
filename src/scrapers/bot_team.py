@@ -49,11 +49,22 @@ class BotTeamScraper(BaseScraper):
             cname = country["name"]
             logger.info(f"--- Scraping Country: {cname} (ID: {cid}) ---")
             
-            # Switch session context to the target country
-            self.page.goto(f"{self.base_url}/ver_pais.asp?action=mudar_pais&p={cid}")
-            self.page.wait_for_load_state("domcontentloaded")
+            # Fetch the country's sg= shortcode directly from its National page
+            self.page.goto(f"{self.base_url}/ver_pais.asp?nm=1&id={cid}")
+            soup_pais = BeautifulSoup(self.page.content(), 'html.parser')
+            sg_val = None
+            league_link = soup_pais.find('a', href=re.compile(r'classificacao\.asp\?.*sg=', re.IGNORECASE))
+            if league_link:
+                sg_match = re.search(r'sg=([A-Z0-9]+)', league_link['href'], re.IGNORECASE)
+                if sg_match:
+                    sg_val = sg_match.group(1)
+                    
+            if not sg_val:
+                logger.warning(f"Could not automatically resolve sg= parameter for {cname}. Skipping.")
+                continue
             
-            current_league_url = f"{self.base_url}/classificacao.asp?dv=1&sr=1&vf=1"
+            logger.info(f"Resolved {cname} -> sg={sg_val}")
+            current_league_url = f"{self.base_url}/classificacao.asp?dv=1&sr=1&vf=1&sg={sg_val}"
             
             while current_league_url:
                 teams, next_url = self.get_bot_teams_and_next_league(cname, current_league_url)
