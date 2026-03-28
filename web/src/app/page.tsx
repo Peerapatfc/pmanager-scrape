@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { Users, ArrowRightLeft, TrendingUp } from 'lucide-react';
+import { Users, ArrowRightLeft, TrendingUp, Bot } from 'lucide-react';
 import Link from 'next/link';
 
 export const revalidate = 60; // Revalidate every 60 seconds
@@ -13,9 +13,14 @@ async function getStats() {
     .from('transfer_listings')
     .select('*', { count: 'exact', head: true });
 
+  const { count: botCount } = await supabase
+    .from('bot_opportunities')
+    .select('*', { count: 'exact', head: true });
+
   return {
     players: playersCount || 0,
     transfers: transfersCount || 0,
+    bots: botCount || 0,
   };
 }
 
@@ -59,6 +64,20 @@ export default async function DashboardPage() {
           <p className="text-4xl font-bold text-white mb-2">{stats.transfers}</p>
           <Link href="/transfers" className="text-sm text-cyan-400 flex items-center hover:underline">
             View all transfers <TrendingUp size={16} className="ml-1" />
+          </Link>
+        </div>
+
+        {/* Bot Opportunities Card */}
+        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 shadow-lg shadow-black/50 hover:border-purple-500/50 transition-colors">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-neutral-200">Bot Opportunities</h3>
+            <div className="p-3 bg-purple-500/10 text-purple-400 rounded-lg">
+              <Bot size={24} />
+            </div>
+          </div>
+          <p className="text-4xl font-bold text-white mb-2">{stats.bots}</p>
+          <Link href="/bot-opportunities" className="text-sm text-purple-400 flex items-center hover:underline">
+            View bot targets <TrendingUp size={16} className="ml-1" />
           </Link>
         </div>
       </div>

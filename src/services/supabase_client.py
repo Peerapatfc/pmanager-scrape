@@ -172,6 +172,75 @@ class SupabaseManager:
             logger.error(f"Failed to fetch transfer_listings: {e}")
             return []
 
+    # ── Bot Opportunities ──
+    def upsert_bot_opportunities(self, records: list[dict]):
+        """Batch upsert bot opportunity records."""
+        COL_MAP = {
+            "id": "id",
+            "name": "name",
+            "position": "position",
+            "age": "age",
+            "quality": "quality",
+            "team_name": "team_name",
+            "estimated_value": "estimated_value",
+            "asking_price": "asking_price",
+            "value_diff": "value_diff",
+            "profit_margin": "profit_margin",
+            "url": "url",
+        }
+        
+        rows = []
+        for rec in records:
+            row = {}
+            for src_key, db_key in COL_MAP.items():
+                if src_key in rec:
+                    row[db_key] = self._to_native(rec[src_key])
+            
+            if "id" not in row or not row["id"]:
+                continue
+            row["id"] = str(row["id"])
+            
+            # Coerce numeric types
+            if "age" in row:
+                try:
+                    row["age"] = int(row["age"]) if row["age"] else None
+                except (ValueError, TypeError):
+                    row["age"] = None
+            for num_col in ["estimated_value", "asking_price", "value_diff"]:
+                if num_col in row:
+                    try:
+                        row[num_col] = int(row[num_col]) if row[num_col] != "" else 0
+                    except (ValueError, TypeError):
+                        row[num_col] = 0
+            if "profit_margin" in row:
+                try:
+                    row["profit_margin"] = float(row["profit_margin"]) if row["profit_margin"] != "" else 0.0
+                except (ValueError, TypeError):
+                    row["profit_margin"] = 0.0
+            
+            rows.append(row)
+        
+        if not rows:
+            return
+        
+        for i in range(0, len(rows), 500):
+            batch = rows[i:i + 500]
+            try:
+                self.client.table("bot_opportunities").upsert(batch).execute()
+            except Exception as e:
+                logger.error(f"Failed to upsert bot_opportunities batch {i}: {e}")
+        
+        logger.info(f"Upserted {len(rows)} rows to 'bot_opportunities'")
+
+    def get_all_bot_opportunities(self) -> list[dict]:
+        """Fetch all bot opportunity records."""
+        try:
+            resp = self.client.table("bot_opportunities").select("*").execute()
+            return resp.data or []
+        except Exception as e:
+            logger.error(f"Failed to fetch bot_opportunities: {e}")
+            return []
+
     # ── Team Info (replaces "Team Info" sheet) ──
 
     def upsert_team_info(self, info: dict):

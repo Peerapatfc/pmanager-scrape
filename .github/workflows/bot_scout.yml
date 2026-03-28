@@ -1,0 +1,58 @@
+name: Bot Scout Scraper
+
+on:
+  schedule:
+    # Run once daily at 4:00 AM UTC (adjust as needed since Bot scraping is intensive)
+    - cron: '0 4 * * *'
+  
+  workflow_dispatch:
+
+jobs:
+  scrape_bots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Install Playwright browsers
+        run: |
+          playwright install chromium
+          playwright install-deps chromium
+      
+      - name: Create .env file
+        run: |
+          echo "PM_USERNAME=${{ secrets.PM_USERNAME }}" >> .env
+          echo "PM_PASSWORD=${{ secrets.PM_PASSWORD }}" >> .env
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+          echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
+      
+      - name: Run Bot Scout Scraper
+        run: |
+          python main_bot_scout.py
+        env:
+          PM_USERNAME: ${{ secrets.PM_USERNAME }}
+          PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
+      - name: Upload Bot Opportunities artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bot-opportunities-${{ github.run_number }}
+          path: |
+            bot_opportunities.csv
+          retention-days: 7
