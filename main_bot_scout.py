@@ -20,8 +20,8 @@ def main():
         logger.info("Starting BOT Team Scrape...")
         
         # 1. Scrape league tree to find bot teams
-        # Scrape ALL countries and ALL leagues sequentially
-        bot_teams = scraper.scrape_league_tree(max_division=None)
+        # Scrape top league and second division only
+        bot_teams = scraper.scrape_league_tree(max_division=2)
         
         if not bot_teams:
             logger.warning("No bot teams found!")
