@@ -187,6 +187,7 @@ class SupabaseManager:
             "value_diff": "value_diff",
             "profit_margin": "profit_margin",
             "url": "url",
+            "last_evaluated_at": "last_evaluated_at",
         }
         
         rows = []
@@ -240,6 +241,28 @@ class SupabaseManager:
         except Exception as e:
             logger.error(f"Failed to fetch bot_opportunities: {e}")
             return []
+
+    def get_batch_for_evaluation(self, batch_size=500) -> list[dict]:
+        """Fetch a batch of the oldest evaluated players."""
+        try:
+            resp = (self.client.table("bot_opportunities")
+                    .select("*")
+                    .order("last_evaluated_at", desc=False, nullsfirst=True)
+                    .limit(batch_size)
+                    .execute())
+            return resp.data or []
+        except Exception as e:
+            logger.error(f"Failed to fetch bot evaluation batch: {e}")
+            return []
+
+    def clear_bot_opportunities(self):
+        """Clear all records from the bot_opportunities table."""
+        try:
+            # Using a filter that matches all rows (id is never '0' or just any string not likely to be '0')
+            self.client.table("bot_opportunities").delete().neq("id", "0").execute()
+            logger.info("Cleared all records from 'bot_opportunities'")
+        except Exception as e:
+            logger.error(f"Failed to clear bot_opportunities: {e}")
 
     # ── Team Info (replaces "Team Info" sheet) ──
 

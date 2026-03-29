@@ -39,17 +39,12 @@ def main():
                 
         logger.info(f"Loaded {len(all_bot_players)} players from BOT teams. Evaluating...")
         
-        # 3. Evaluate each player against filter criteria
-        # Loop limit or progress indicator
+        # 3. Create stubs for evaluation bot
         for i, (pid, team_name) in enumerate(all_bot_players):
-            if i > 0 and i % 50 == 0:
-                logger.info(f"Evaluating player {i}/{len(all_bot_players)}...")
-            try:
-                result = scraper.evaluate_player(pid, team_name)
-                if result:
-                    bot_opportunities.append(result)
-            except Exception as e:
-                logger.error(f"Error evaluating player {pid}: {e}")
+            bot_opportunities.append({
+                "id": pid,
+                "team_name": team_name
+            })
                 
     except Exception as e:
         logger.error(f"Global Scraper Error: {e}")
@@ -70,6 +65,7 @@ def main():
     
     # Upload to Supabase
     db = SupabaseManager()
+    db.clear_bot_opportunities()
     records = df.to_dict(orient="records")
     db.upsert_bot_opportunities(records)
 
