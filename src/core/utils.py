@@ -8,8 +8,6 @@ auction deadlines) that are used across multiple scrapers and entry scripts.
 import re
 from datetime import datetime, timedelta
 
-from src import constants
-
 
 def parse_deadline(deadline_str: str | None) -> datetime | None:
     """Parse a game deadline string into a timezone-aware datetime.
@@ -44,18 +42,16 @@ def parse_deadline(deadline_str: str | None) -> datetime | None:
     hour = int(match.group(1))
     minute = int(match.group(2))
 
-    utc_now = datetime.utcnow()
+    now = datetime.now()
 
     if "today" in txt:
-        target_utc = utc_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        return now.replace(hour=hour, minute=minute, second=0, microsecond=0)
     elif "tomorrow" in txt:
-        target_utc = (utc_now + timedelta(days=1)).replace(
+        return (now + timedelta(days=1)).replace(
             hour=hour, minute=minute, second=0, microsecond=0
         )
     else:
         return None
-
-    return target_utc + timedelta(hours=constants.UTC_OFFSET_HOURS)
 
 
 def clean_currency(value_str: str | None) -> float:

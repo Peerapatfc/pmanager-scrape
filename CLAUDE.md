@@ -332,3 +332,16 @@ All data is fetched server-side in `page.tsx` files and passed to `*Client.tsx` 
 **BOT player quality filter** (in `bot_team.py`):
 - Accepted quality tiers: "Excellent", "Formidable", "World Class"
 - Players below these tiers are skipped during evaluation
+
+---
+
+## Gotchas & Bugs to Avoid
+
+**`parse_deadline()` — no UTC conversion:** PManager displays deadline strings (e.g. `"Today at 14:30"`) already in local time (UTC+7). `parse_deadline()` must NOT apply any UTC offset — use `datetime.now()` as the base, not `utcnow()`. Adding `timedelta(hours=7)` on top of the parsed time shifts all hours by +7 and breaks every deadline comparison.
+
+**`src/services/gsheets.py`:** A Google Sheets integration (`SheetManager`) exists but is not part of the main scraper pipeline. Not imported by any entry script — only used if Google Sheets export is needed. Omitted from the project structure above intentionally (optional / legacy).
+
+**ruff lint failures to watch for:**
+- F401 — unused imports (e.g. `from typing import Any` left in after refactoring)
+- I001 — import block must be sorted: stdlib → third-party → local, with blank lines between groups
+- W291/W293 — trailing whitespace or whitespace-only blank lines
