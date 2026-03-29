@@ -55,4 +55,4 @@ jobs:
           name: bot-evaluations-${{ github.run_number }}
           path: |
             bot_evaluations_batch.csv
-           retention-days: 7
+          retention-days: 7
