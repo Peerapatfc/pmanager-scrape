@@ -15,7 +15,7 @@ def main():
     db = SupabaseManager()
     
     # 1. Fetch batch of players from DB
-    batch_size = 500  # Evaluates 4,000 players/day (120,000 / month) via 8 runs
+    batch_size = 2200  # Evaluates ~2,200 players/day via 1 daily run (~58 min, within free tier 2,000 min/month)
     players_batch = db.get_batch_for_evaluation(batch_size=batch_size)
     
     if not players_batch:
