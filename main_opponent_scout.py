@@ -1,87 +1,117 @@
-import sys
+"""
+Opponent scouting entry point.
+
+Accepts an opponent team URL or numeric team ID, fetches their squad from
+PManager, and cross-references it against the local player database to
+identify players already on the watchlist.
+
+Usage::
+
+    python main_opponent_scout.py <TEAM_URL_OR_ID>
+
+Examples::
+
+    python main_opponent_scout.py 12345
+    python main_opponent_scout.py https://www.pmanager.org/ver_equipa.asp?equipa=12345
+"""
+
+import argparse
+
 from src.config import config
 from src.core.logger import logger
 from src.scrapers.opponent import OpponentScraper
 from src.services.supabase_client import SupabaseManager
 
-def main():
-    config.validate()
-        
-    # Get Team URL from args
-    if len(sys.argv) < 2:
-        print("Usage: python main_opponent_scout.py <TEAM_URL_OR_ID>")
-        return
-        
-    input_arg = sys.argv[1]
-    
-    if "pmanager.org" not in input_arg:
-        if input_arg.isdigit():
-            team_url = f"https://www.pmanager.org/ver_equipa.asp?equipa={input_arg}&vjog=1"
-        else:
-            logger.error("Invalid input.")
-            return
-    else:
-        team_url = input_arg
+_BASE_URL = "https://www.pmanager.org"
 
-    logger.info(f"Starting Opponent Scout (Check Mode) for: {team_url}")
-    
-    # 1. Fetch Existing Data from Supabase
-    logger.info("Fetching existing player database...")
+
+def _resolve_team_url(input_arg: str) -> str | None:
+    """Convert a team ID or URL to a full team roster URL.
+
+    Args:
+        input_arg: Either a numeric team ID string or a full PManager URL.
+
+    Returns:
+        Full roster URL string, or ``None`` if the input is unrecognisable.
+    """
+    if _BASE_URL in input_arg:
+        return input_arg
+    if input_arg.isdigit():
+        return f"{_BASE_URL}/ver_equipa.asp?equipa={input_arg}&vjog=1"
+    return None
+
+
+def main() -> None:
+    """Run the opponent scout and print a match report."""
+    parser = argparse.ArgumentParser(
+        description="Scout an opponent team and cross-reference with your player database."
+    )
+    parser.add_argument(
+        "team",
+        help="Opponent team ID (numeric) or full PManager team URL.",
+    )
+    args = parser.parse_args()
+
+    config.validate()
+
+    team_url = _resolve_team_url(args.team)
+    if not team_url:
+        logger.error(
+            "Invalid input '%s'. Provide a numeric team ID or a full pmanager.org URL.",
+            args.team,
+        )
+        return
+
+    logger.info("Starting Opponent Scout for: %s", team_url)
+
     db = SupabaseManager()
     existing_records = db.get_all_players()
-    
-    existing_ids = set()
-    for r in existing_records:
-        if 'id' in r:
-            existing_ids.add(str(r['id']))
-            
-    logger.info(f"Loaded {len(existing_ids)} players from database.")
+    existing_ids = {str(r["id"]) for r in existing_records if "id" in r}
+    logger.info("Loaded %d players from database.", len(existing_ids))
 
-    scraper = OpponentScraper(base_url="https://www.pmanager.org")
-    
+    scraper = OpponentScraper(base_url=_BASE_URL)
+
     try:
         scraper.start(headless=config.HEADLESS_MODE)
         scraper.login(config.PM_USERNAME, config.PM_PASSWORD)
-            
-        # 2. Get Player IDs from Team Page
+
         opponent_ids = scraper.get_team_players(team_url)
-        
+
         if not opponent_ids:
             logger.warning("No players found on this team page.")
             return
 
-        # 3. Check for matches
-        matches = []
-        for pid in opponent_ids:
-            if str(pid) in existing_ids:
-                matches.append(pid)
-        
-        # 4. Report Results
-        print("\n" + "="*50)
-        print("SCOUT REPORT")
-        print("="*50)
-        
+        matches = [pid for pid in opponent_ids if str(pid) in existing_ids]
+
+        logger.info("=" * 50)
+        logger.info("SCOUT REPORT")
+        logger.info("=" * 50)
+
         if matches:
-            print(f"🚨 FOUND {len(matches)} MATCHES IN DATABASE! 🚨")
-            print("The following opponent players are already on your watchlist:")
-            
+            logger.info("FOUND %d MATCHES IN DATABASE!", len(matches))
+            logger.info("The following opponent players are on your watchlist:")
             for pid in matches:
-                rec = next((r for r in existing_records if str(r.get('id')) == str(pid)), None)
-                name = rec.get('name', 'Unknown') if rec else 'Unknown'
-                pos = rec.get('position', '?') if rec else '?'
-                
-                print(f"- [{pos}] {name} (ID: {pid})")
-                print(f"  Link: https://www.pmanager.org/ver_jogador.asp?jog_id={pid}")
-            
+                rec = next(
+                    (r for r in existing_records if str(r.get("id")) == str(pid)), None
+                )
+                name = rec.get("name", "Unknown") if rec else "Unknown"
+                pos = rec.get("position", "?") if rec else "?"
+                logger.info("  [%s] %s (ID: %s)", pos, name, pid)
+                logger.info(
+                    "  Link: %s/ver_jogador.asp?jog_id=%s", _BASE_URL, pid
+                )
         else:
-            print("✅ Clean Scout: None of the opponent's players are in your database.")
-        
-        print("="*50)
-            
+            logger.info(
+                "Clean Scout: None of the opponent's players are in your database."
+            )
+
+        logger.info("=" * 50)
+
     except Exception as e:
-        logger.error(f"An error occurred: {e}")
+        logger.error("An error occurred: %s", e, exc_info=True)
     finally:
         scraper.stop()
+
 
 if __name__ == "__main__":
     main()

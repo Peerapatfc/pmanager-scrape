@@ -1,0 +1,1 @@
+Run the full transfer market scraper. Execute `python main_all_transfer.py` from the project root and report the outcome — number of players scraped, any errors, and whether the Supabase upsert succeeded.

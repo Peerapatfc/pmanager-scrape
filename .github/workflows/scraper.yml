@@ -3,7 +3,7 @@ name: Run PManager Scraper
 on:
   schedule:
     - cron: '30 22,10,16,4 * * *'
-  
+
   workflow_dispatch:
     inputs:
       scraper_type:
@@ -21,62 +21,73 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 180
-    
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
-      
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      
+
+      - name: Lint (ruff)
+        run: ruff check src/
+
+      - name: Run unit tests
+        run: pytest tests/ -v
+
       - name: Install Playwright browsers
         run: |
           playwright install chromium
           playwright install-deps chromium
-      
+
       - name: Create .env file
         run: |
-          echo "PM_USERNAME=${{ secrets.PM_USERNAME }}" >> .env
+          echo "PM_USERNAME=${{ secrets.PM_USERNAME }}" > .env
           echo "PM_PASSWORD=${{ secrets.PM_PASSWORD }}" >> .env
           echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
           echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
-      
+          echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" >> .env
+          echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> .env
+          chmod 600 .env
+
       - name: Run Team Info Scraper
         if: ${{ github.event.inputs.scraper_type == 'team_info' || github.event.inputs.scraper_type == 'all' || github.event_name == 'schedule' }}
-        run: |
-          python main_team_info.py
-        env:
-          PM_USERNAME: ${{ secrets.PM_USERNAME }}
-          PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
+        run: python main_team_info.py
 
       - name: Run All Transfer Scraper
         if: ${{ github.event.inputs.scraper_type == 'all_transfer' || github.event.inputs.scraper_type == 'all' || github.event_name == 'schedule' }}
-        run: |
-          python main_all_transfer.py
-        env:
-          PM_USERNAME: ${{ secrets.PM_USERNAME }}
-          PM_PASSWORD: ${{ secrets.PM_PASSWORD }}
-      
+        run: python main_all_transfer.py
+
       - name: Run Market Analysis
-        if: ${{ success() || github.event.inputs.scraper_type == 'analysis' }}
-        run: |
-          python ai_recommendation.py
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        if: ${{ success() && (github.event.inputs.scraper_type == 'analysis' || github.event.inputs.scraper_type == 'all' || github.event_name == 'schedule') }}
+        run: python ai_recommendation.py
 
       - name: Upload CSV artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: scraper-results-${{ github.run_number }}
           path: |
             transfer_targets*.csv
           retention-days: 30
+
+      - name: Cleanup sensitive files
+        if: always()
+        run: rm -f .env credentials.json
+
+      - name: Notify failure via Telegram
+        if: failure()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="⚠️ Workflow '${{ github.workflow }}' failed. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

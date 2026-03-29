@@ -2,9 +2,11 @@ import json
 import os
 import re
 
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 def assemble_json():
-    base_dir = r"d:/Work/Meaw - Q/Scraper/pmanager-scrape/docs/manual/sections"
-    output_file = r"d:/Work/Meaw - Q/Scraper/pmanager-scrape/docs/pmanager_rules.json"
+    base_dir = os.path.join(_REPO_ROOT, "docs", "manual", "sections")
+    output_file = os.path.join(_REPO_ROOT, "docs", "pmanager_rules.json")
     
     sections = []
     

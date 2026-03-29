@@ -1,0 +1,1 @@
+Generate and send Telegram trading alerts. Execute `python ai_recommendation.py` from the project root and report the outcome — how many opportunities matched the filters (budget ≤ 30M, forecast profit > 0, deadline within 12 hours) and whether the Telegram message was sent successfully.

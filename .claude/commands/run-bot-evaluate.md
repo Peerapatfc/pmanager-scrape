@@ -1,0 +1,1 @@
+Run the BOT player evaluation batch. Execute `python main_bot_evaluate.py` from the project root and report the outcome — how many players were evaluated, profit margins found, and whether the Supabase upsert succeeded.

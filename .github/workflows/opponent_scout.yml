@@ -12,32 +12,44 @@ jobs:
   scout_opponent:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-        cache: 'pip'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        playwright install chromium
-        playwright install-deps chromium
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          playwright install chromium
+          playwright install-deps chromium
 
-    - name: Create .env file
-      run: |
-        echo "PM_USERNAME=${{ secrets.PM_USERNAME }}" >> .env
-        echo "PM_PASSWORD=${{ secrets.PM_PASSWORD }}" >> .env
-        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
-        echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
-        echo "CI=true" >> .env
+      - name: Create .env file
+        run: |
+          echo "PM_USERNAME=${{ secrets.PM_USERNAME }}" > .env
+          echo "PM_PASSWORD=${{ secrets.PM_PASSWORD }}" >> .env
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+          echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
+          echo "CI=true" >> .env
+          chmod 600 .env
 
-    - name: Run Opponent Scout
-      run: python main_opponent_scout.py "${{ github.event.inputs.scout_target }}"
+      - name: Run Opponent Scout
+        run: python main_opponent_scout.py "${{ github.event.inputs.scout_target }}"
+
+      - name: Cleanup sensitive files
+        if: always()
+        run: rm -f .env credentials.json
+
+      - name: Notify failure via Telegram
+        if: failure()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="⚠️ Workflow '${{ github.workflow }}' failed. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

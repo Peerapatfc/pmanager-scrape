@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python main_all_transfer.py)",
+      "Bash(python main_bot_scout.py)",
+      "Bash(python main_bot_evaluate.py)",
+      "Bash(python ai_recommendation.py)",
+      "Bash(python update_final_prices.py)",
+      "Bash(python main_team_info.py)",
+      "Bash(python main_opponent_scout.py)",
+      "Bash(cd web && pnpm *)",
+      "Bash(pip install *)",
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(git diff *)"
+    ]
+  }
+}

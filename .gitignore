@@ -23,3 +23,7 @@ Thumbs.db
 *.csv
 
 credentials.json
+
+# Generated runtime outputs
+team_info.json
+reports/
