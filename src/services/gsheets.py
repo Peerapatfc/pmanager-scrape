@@ -1,7 +1,9 @@
 import gspread
 from google.oauth2.service_account import Credentials
+
 from src.config import config
 from src.core.logger import logger
+
 
 class SheetManager:
     def __init__(self):
@@ -15,7 +17,7 @@ class SheetManager:
                 "https://www.googleapis.com/auth/drive"
             ]
             creds = Credentials.from_service_account_file(
-                config.GOOGLE_CREDENTIALS_FILE, 
+                config.GOOGLE_CREDENTIALS_FILE,
                 scopes=scopes
             )
             return gspread.authorize(creds)
@@ -37,13 +39,13 @@ class SheetManager:
         ws = self.get_worksheet(sheet_name)
         if clear:
             ws.clear()
-        
+
         payload = []
         if columns:
             payload.append(columns)
-        
+
         payload.extend(data)
-        
+
         try:
             ws.update(payload, value_input_option="USER_ENTERED")
             logger.info(f"Uploaded {len(payload)} rows to '{sheet_name}'")

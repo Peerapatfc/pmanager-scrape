@@ -6,7 +6,6 @@ profiles can be analysed for scouting purposes.
 """
 
 import re
-from typing import Any
 
 from bs4 import BeautifulSoup
 
