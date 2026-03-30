@@ -37,6 +37,10 @@ def _resolve_team_url(input_arg: str) -> str | None:
         Full roster URL string, or ``None`` if the input is unrecognisable.
     """
     if _BASE_URL in input_arg:
+        # Ensure vjog=1 is present so the squad/player list view is shown
+        if "vjog=1" not in input_arg:
+            separator = "&" if "?" in input_arg else "?"
+            return f"{input_arg}{separator}vjog=1"
         return input_arg
     if input_arg.isdigit():
         return f"{_BASE_URL}/ver_equipa.asp?equipa={input_arg}&vjog=1"

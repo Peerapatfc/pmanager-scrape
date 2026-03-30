@@ -27,7 +27,7 @@ export default function TransfersClient() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [sortField, setSortField] = useState("roi");
+  const [sortField, setSortField] = useState("forecast_profit");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [filterPos, setFilterPos] = useState("");
 
