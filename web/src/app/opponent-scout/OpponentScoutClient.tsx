@@ -107,7 +107,7 @@ export default function OpponentScoutClient() {
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
   const clearFilters = () => { setSearch(""); setFilterPos(""); setFilterMatchOnly(false); };
 
-  async function handleTrigger(e: React.FormEvent) {
+  async function handleTrigger(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!teamTarget.trim()) return;
     setTriggering(true);
@@ -141,7 +141,7 @@ export default function OpponentScoutClient() {
             Opponent Scout
           </h1>
           <p className="text-neutral-400 mt-2">
-            Showing {rows.length} of {totalCount} watchlist players found on opponent teams.
+            Showing {rows.length} of {totalCount} players. Players in your database are highlighted as matches.
           </p>
         </div>
 
