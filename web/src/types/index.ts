@@ -61,6 +61,17 @@ export interface BotOpportunity {
   url?: string;
 }
 
+/** A matched player from an opponent scout session (`opponent_scout_results` table). */
+export interface OpponentScoutResult {
+  team_id: string;
+  player_id: string;
+  team_name: string | null;
+  player_name: string | null;
+  position: string | null;
+  player_link: string | null;
+  scouted_at: string;
+}
+
 /** The single team info snapshot from the `team_info` table (id=1). */
 export interface TeamInfo {
   id: number;

@@ -59,6 +59,35 @@ CREATE TABLE IF NOT EXISTS team_info (
     recorded_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- 4. Bot Opportunities (undervalued players from BOT teams)
+CREATE TABLE IF NOT EXISTS bot_opportunities (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    position TEXT,
+    age INTEGER,
+    quality TEXT,
+    team_name TEXT,
+    estimated_value BIGINT DEFAULT 0,
+    asking_price BIGINT DEFAULT 0,
+    value_diff BIGINT DEFAULT 0,
+    profit_margin REAL DEFAULT 0,
+    url TEXT,
+    scraped_at TIMESTAMPTZ DEFAULT now(),
+    last_evaluated_at TIMESTAMPTZ
+);
+
+-- 5. Opponent Scout Results — matched players from opponent team scouting sessions
+CREATE TABLE IF NOT EXISTS opponent_scout_results (
+    team_id   TEXT NOT NULL,
+    player_id TEXT NOT NULL,
+    team_name TEXT,
+    player_name TEXT,
+    position  TEXT,
+    player_link TEXT,
+    scouted_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (team_id, player_id)
+);
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_players_position ON players(position);
 CREATE INDEX IF NOT EXISTS idx_players_age ON players(age);

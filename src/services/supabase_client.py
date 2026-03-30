@@ -420,6 +420,40 @@ class SupabaseManager:
         except Exception as e:
             logger.error("Failed to upsert team_info: %s", e)
 
+    # ------------------------------------------------------------------
+    # opponent_scout_results table
+    # ------------------------------------------------------------------
+
+    def upsert_opponent_scout_results(self, results: list[dict[str, Any]]) -> None:
+        """Upsert opponent scout match records.
+
+        Args:
+            results: List of dicts with keys team_id, player_id, team_name,
+                player_name, position, player_link, scouted_at.
+        """
+        if not results:
+            return
+        self._upsert_batched("opponent_scout_results", results)
+        logger.info("Upserted %d rows to 'opponent_scout_results'", len(results))
+
+    def get_all_opponent_scout_results(self) -> list[dict[str, Any]]:
+        """Fetch all opponent scout results ordered by scouted_at descending.
+
+        Returns:
+            List of row dicts, or an empty list on error.
+        """
+        try:
+            resp = (
+                self.client.table("opponent_scout_results")
+                .select("*")
+                .order("scouted_at", desc=True)
+                .execute()
+            )
+            return resp.data or []
+        except Exception as e:
+            logger.error("Failed to fetch opponent_scout_results: %s", e)
+            return []
+
     def get_team_info(self) -> dict[str, Any] | None:
         """Fetch the single team info row.
 

@@ -16,6 +16,8 @@ Examples::
 """
 
 import argparse
+from datetime import datetime, timezone
+from urllib.parse import parse_qs, urlparse
 
 from src.config import config
 from src.core.logger import logger
@@ -62,7 +64,8 @@ def main() -> None:
         )
         return
 
-    logger.info("Starting Opponent Scout for: %s", team_url)
+    team_id = parse_qs(urlparse(team_url).query).get("equipa", ["unknown"])[0]
+    logger.info("Starting Opponent Scout for: %s (team_id=%s)", team_url, team_id)
 
     db = SupabaseManager()
     existing_records = db.get_all_players()
@@ -90,6 +93,8 @@ def main() -> None:
         if matches:
             logger.info("FOUND %d MATCHES IN DATABASE!", len(matches))
             logger.info("The following opponent players are on your watchlist:")
+            scouted_at = datetime.now(timezone.utc).isoformat()
+            results_to_save = []
             for pid in matches:
                 rec = next(
                     (r for r in existing_records if str(r.get("id")) == str(pid)), None
@@ -100,6 +105,16 @@ def main() -> None:
                 logger.info(
                     "  Link: %s/ver_jogador.asp?jog_id=%s", _BASE_URL, pid
                 )
+                results_to_save.append({
+                    "team_id": team_id,
+                    "player_id": str(pid),
+                    "team_name": None,
+                    "player_name": name,
+                    "position": pos,
+                    "player_link": f"{_BASE_URL}/ver_jogador.asp?jog_id={pid}",
+                    "scouted_at": scouted_at,
+                })
+            db.upsert_opponent_scout_results(results_to_save)
         else:
             logger.info(
                 "Clean Scout: None of the opponent's players are in your database."

@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { Users, ArrowRightLeft, TrendingUp, Bot } from "lucide-react";
+import { Users, ArrowRightLeft, TrendingUp, Bot, Swords } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -9,6 +9,7 @@ interface Stats {
   players: number;
   transfers: number;
   bots: number;
+  opponents: number;
 }
 
 interface StatsCardProps {
@@ -49,17 +50,19 @@ function StatsCard({
 }
 
 async function getStats(): Promise<Stats> {
-  const [{ count: playersCount }, { count: transfersCount }, { count: botCount }] =
+  const [{ count: playersCount }, { count: transfersCount }, { count: botCount }, { count: opponentCount }] =
     await Promise.all([
       supabase.from("players").select("*", { count: "exact", head: true }),
       supabase.from("transfer_listings").select("*", { count: "exact", head: true }),
       supabase.from("bot_opportunities").select("*", { count: "exact", head: true }),
+      supabase.from("opponent_scout_results").select("*", { count: "exact", head: true }),
     ]);
 
   return {
     players: playersCount ?? 0,
     transfers: transfersCount ?? 0,
     bots: botCount ?? 0,
+    opponents: opponentCount ?? 0,
   };
 }
 
@@ -107,6 +110,16 @@ export default async function DashboardPage() {
           linkHref="/bot-opportunities"
           linkLabel="View bot targets"
           linkColor="text-purple-400"
+        />
+        <StatsCard
+          title="Opponent Matches"
+          count={stats.opponents}
+          icon={<Swords size={24} />}
+          iconBg="bg-orange-500/10 text-orange-400"
+          hoverBorder="hover:border-orange-500/50"
+          linkHref="/opponent-scout"
+          linkLabel="View scout results"
+          linkColor="text-orange-400"
         />
       </div>
     </div>
