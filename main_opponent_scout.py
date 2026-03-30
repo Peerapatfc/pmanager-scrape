@@ -88,42 +88,36 @@ def main() -> None:
             logger.warning("No players found on this team page.")
             return
 
-        matches = [pid for pid in opponent_ids if str(pid) in existing_ids]
+        matches = {str(pid) for pid in opponent_ids if str(pid) in existing_ids}
 
         logger.info("=" * 50)
-        logger.info("SCOUT REPORT")
+        logger.info("SCOUT REPORT — %d players found, %d watchlist matches", len(opponent_ids), len(matches))
         logger.info("=" * 50)
 
-        if matches:
-            logger.info("FOUND %d MATCHES IN DATABASE!", len(matches))
-            logger.info("The following opponent players are on your watchlist:")
-            scouted_at = datetime.now(timezone.utc).isoformat()
-            results_to_save = []
-            for pid in matches:
-                rec = next(
-                    (r for r in existing_records if str(r.get("id")) == str(pid)), None
-                )
-                name = rec.get("name", "Unknown") if rec else "Unknown"
-                pos = rec.get("position", "?") if rec else "?"
-                logger.info("  [%s] %s (ID: %s)", pos, name, pid)
-                logger.info(
-                    "  Link: %s/ver_jogador.asp?jog_id=%s", _BASE_URL, pid
-                )
-                results_to_save.append({
-                    "team_id": team_id,
-                    "player_id": str(pid),
-                    "team_name": None,
-                    "player_name": name,
-                    "position": pos,
-                    "player_link": f"{_BASE_URL}/ver_jogador.asp?jog_id={pid}",
-                    "scouted_at": scouted_at,
-                })
-            db.upsert_opponent_scout_results(results_to_save)
-        else:
-            logger.info(
-                "Clean Scout: None of the opponent's players are in your database."
+        scouted_at = datetime.now(timezone.utc).isoformat()
+        results_to_save = []
+        for pid in opponent_ids:
+            rec = next(
+                (r for r in existing_records if str(r.get("id")) == str(pid)), None
             )
+            name = rec.get("name", "Unknown") if rec else "Unknown"
+            pos = rec.get("position", "?") if rec else "?"
+            is_match = str(pid) in matches
+            if is_match:
+                logger.info("  [MATCH] [%s] %s (ID: %s)", pos, name, pid)
+            results_to_save.append({
+                "team_id": team_id,
+                "player_id": str(pid),
+                "team_name": None,
+                "player_name": name if rec else None,
+                "position": pos if rec else None,
+                "player_link": f"{_BASE_URL}/ver_jogador.asp?jog_id={pid}",
+                "scouted_at": scouted_at,
+                "is_watchlist_match": is_match,
+            })
 
+        db.upsert_opponent_scout_results(results_to_save)
+        logger.info("Saved %d players to opponent_scout_results.", len(results_to_save))
         logger.info("=" * 50)
 
     except Exception as e:

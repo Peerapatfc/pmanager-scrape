@@ -31,6 +31,7 @@ export default function OpponentScoutClient() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterPos, setFilterPos] = useState("");
+  const [filterMatchOnly, setFilterMatchOnly] = useState(false);
   const [sortField, setSortField] = useState("scouted_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -51,7 +52,7 @@ export default function OpponentScoutClient() {
   // Reset page on filter/sort change
   useEffect(() => {
     setPage(1);
-  }, [filterPos, sortField, sortOrder]);
+  }, [filterPos, filterMatchOnly, sortField, sortOrder]);
 
   // Fetch
   useEffect(() => {
@@ -71,9 +72,8 @@ export default function OpponentScoutClient() {
             `player_name.ilike.%${debouncedSearch}%,team_id.ilike.%${debouncedSearch}%`
           );
         }
-        if (filterPos) {
-          query = query.eq("position", filterPos);
-        }
+        if (filterPos) query = query.eq("position", filterPos);
+        if (filterMatchOnly) query = query.eq("is_watchlist_match", true);
 
         query = query.order(sortField, { ascending: sortOrder === "asc", nullsFirst: false });
         if (sortField !== "player_id") {
@@ -102,10 +102,10 @@ export default function OpponentScoutClient() {
 
     fetchData();
     return () => { isMounted = false; };
-  }, [debouncedSearch, filterPos, sortField, sortOrder, page]);
+  }, [debouncedSearch, filterPos, filterMatchOnly, sortField, sortOrder, page]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-  const clearFilters = () => { setSearch(""); setFilterPos(""); };
+  const clearFilters = () => { setSearch(""); setFilterPos(""); setFilterMatchOnly(false); };
 
   async function handleTrigger(e: React.FormEvent) {
     e.preventDefault();
@@ -176,6 +176,23 @@ export default function OpponentScoutClient() {
               <option value="">All Positions</option>
               {POSITIONS.filter(Boolean).map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
+          </div>
+
+          <div className="flex flex-col gap-1 justify-end">
+            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500">
+              Watchlist
+            </label>
+            <button
+              onClick={() => setFilterMatchOnly((v) => !v)}
+              aria-pressed={filterMatchOnly}
+              className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-all ${
+                filterMatchOnly
+                  ? "bg-orange-500/20 border-orange-500/60 text-orange-400"
+                  : "bg-neutral-950 border-neutral-700 text-neutral-400 hover:border-orange-500/40"
+              }`}
+            >
+              {filterMatchOnly ? "Matches Only" : "All Players"}
+            </button>
           </div>
 
           <div className="w-px h-8 bg-neutral-800 mx-1 self-center hidden sm:block" />
@@ -277,6 +294,7 @@ export default function OpponentScoutClient() {
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Player</th>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Pos</th>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Team ID</th>
+                <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800 text-center">Match</th>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Scouted At</th>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-neutral-800 text-center">Profile</th>
               </tr>
@@ -298,6 +316,11 @@ export default function OpponentScoutClient() {
                       <Swords size={13} className="text-neutral-500 shrink-0" />
                       {r.team_id}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-center border-r border-neutral-800/60">
+                    {r.is_watchlist_match
+                      ? <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-orange-500/20 text-orange-400 border border-orange-500/40">Match</span>
+                      : <span className="text-neutral-600 text-xs">—</span>}
                   </td>
                   <td className="px-4 py-3 text-neutral-400 border-r border-neutral-800/60">
                     {formatDeadline(r.scouted_at)}
@@ -321,7 +344,7 @@ export default function OpponentScoutClient() {
               ))}
               {!loading && !error && rows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center text-neutral-500">
                       <Swords size={32} className="mb-3 opacity-50" />
                       <p className="text-base font-medium text-neutral-400">No scout results found</p>

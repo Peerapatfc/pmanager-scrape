@@ -78,13 +78,14 @@ CREATE TABLE IF NOT EXISTS bot_opportunities (
 
 -- 5. Opponent Scout Results — matched players from opponent team scouting sessions
 CREATE TABLE IF NOT EXISTS opponent_scout_results (
-    team_id   TEXT NOT NULL,
-    player_id TEXT NOT NULL,
-    team_name TEXT,
-    player_name TEXT,
-    position  TEXT,
-    player_link TEXT,
-    scouted_at TIMESTAMPTZ DEFAULT NOW(),
+    team_id            TEXT NOT NULL,
+    player_id          TEXT NOT NULL,
+    team_name          TEXT,
+    player_name        TEXT,
+    position           TEXT,
+    player_link        TEXT,
+    is_watchlist_match BOOLEAN DEFAULT FALSE,
+    scouted_at         TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (team_id, player_id)
 );
 

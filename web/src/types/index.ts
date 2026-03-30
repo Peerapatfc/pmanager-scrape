@@ -69,6 +69,7 @@ export interface OpponentScoutResult {
   player_name: string | null;
   position: string | null;
   player_link: string | null;
+  is_watchlist_match: boolean;
   scouted_at: string;
 }
 
