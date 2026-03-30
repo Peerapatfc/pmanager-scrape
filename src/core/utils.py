@@ -34,24 +34,37 @@ def parse_deadline(deadline_str: str | None) -> datetime | None:
     if not deadline_str or not isinstance(deadline_str, str):
         return None
 
-    txt = deadline_str.lower().strip()
-    match = re.search(r"(\d{1,2}):(\d{2})", txt)
-    if not match:
+    txt = deadline_str.strip()
+    time_match = re.search(r"(\d{1,2}):(\d{2})", txt)
+    if not time_match:
         return None
 
-    hour = int(match.group(1))
-    minute = int(match.group(2))
-
+    hour = int(time_match.group(1))
+    minute = int(time_match.group(2))
     now = datetime.now()
 
-    if "today" in txt:
+    lower = txt.lower()
+    if "today" in lower:
         return now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    elif "tomorrow" in txt:
+    elif "tomorrow" in lower:
         return (now + timedelta(days=1)).replace(
             hour=hour, minute=minute, second=0, microsecond=0
         )
-    else:
-        return None
+
+    # Handle "D/M/YY at HH:MM" or "D/M/YYYY at HH:MM"
+    date_match = re.match(r"(\d{1,2})/(\d{1,2})/(\d{2,4})", txt)
+    if date_match:
+        day = int(date_match.group(1))
+        month = int(date_match.group(2))
+        year = int(date_match.group(3))
+        if year < 100:
+            year += 2000
+        try:
+            return datetime(year, month, day, hour, minute, 0)
+        except ValueError:
+            return None
+
+    return None
 
 
 def clean_currency(value_str: str | None) -> float:

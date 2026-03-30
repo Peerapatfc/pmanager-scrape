@@ -22,7 +22,7 @@ import pandas as pd
 from src import constants
 from src.config import config
 from src.core.logger import logger
-from src.core.utils import clean_currency
+from src.core.utils import clean_currency, parse_deadline
 from src.scrapers.transfer import TransferScraper
 from src.services.supabase_client import SupabaseManager
 
@@ -73,6 +73,11 @@ def main() -> None:
 
                 cost_price = max(ask, bids_avg)
                 details["forecast_profit"] = details["forecast_sell"] - cost_price
+
+            # Convert raw deadline text → ISO timestamp string
+            raw_deadline = details.get("deadline", "")
+            parsed = parse_deadline(raw_deadline)
+            details["deadline"] = parsed.strftime("%Y-%m-%d %H:%M:%S") if parsed else None
 
             all_results.append(details)
 

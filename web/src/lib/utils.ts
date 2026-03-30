@@ -26,12 +26,37 @@ const BKK = "Asia/Bangkok";
  * @returns Formatted string like "30/03/2026, 14:30" or "—".
  */
 export function formatDeadline(value: string | null | undefined): string {
-  if (!value) return "—";
-  // Normalise "YYYY-MM-DD HH:mm:ss" → ISO 8601 with Bangkok offset
-  const iso = value.includes("T") ? value : value.replace(" ", "T") + "+07:00";
-  const date = new Date(iso);
-  if (isNaN(date.getTime())) return "—";
-  return format(toZonedTime(date, BKK), "dd/MM/yyyy, HH:mm", { timeZone: BKK });
+  if (!value || value === "N/A") return "—";
+
+  // ISO / PostgreSQL timestamp: "YYYY-MM-DD HH:mm:ss" or "YYYY-MM-DDTHH:mm:ss..."
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const iso = value.includes("T") ? value : value.replace(" ", "T") + "+07:00";
+    const date = new Date(iso);
+    if (!isNaN(date.getTime())) {
+      return format(toZonedTime(date, BKK), "dd/MM/yyyy, HH:mm", { timeZone: BKK });
+    }
+  }
+
+  // Raw scraped format: "D/M/YY at HH:MM" or "D/M/YYYY at HH:MM"
+  const dmyMatch = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+at\s+(\d{1,2}):(\d{2})/i);
+  if (dmyMatch) {
+    let year = parseInt(dmyMatch[3], 10);
+    if (year < 100) year += 2000;
+    const date = new Date(year, parseInt(dmyMatch[2], 10) - 1, parseInt(dmyMatch[1], 10), parseInt(dmyMatch[4], 10), parseInt(dmyMatch[5], 10));
+    if (!isNaN(date.getTime())) {
+      return format(date, "dd/MM/yyyy, HH:mm");
+    }
+  }
+
+  // "Today at HH:MM" — date unknown (stale), show time only
+  const todayMatch = value.match(/today\s+at\s+(\d{1,2}):(\d{2})/i);
+  if (todayMatch) return `Today ${todayMatch[1]}:${todayMatch[2]}`;
+
+  // "Tomorrow at HH:MM"
+  const tomorrowMatch = value.match(/tomorrow\s+at\s+(\d{1,2}):(\d{2})/i);
+  if (tomorrowMatch) return `Tomorrow ${tomorrowMatch[1]}:${tomorrowMatch[2]}`;
+
+  return "—";
 }
 
 /**
