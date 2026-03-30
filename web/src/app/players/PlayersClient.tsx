@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
-import { PAGE_SIZE, DEBOUNCE_MS } from "@/lib/constants";
+import { PAGE_SIZE, DEBOUNCE_MS, POSITIONS, QUALITIES } from "@/lib/constants";
 import { qualityColor } from "@/lib/utils";
 import type { Player } from "@/types";
 
@@ -39,6 +39,8 @@ export default function PlayersClient() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [filterSkill, setFilterSkill] = useState("All");
   const [filterMin, setFilterMin] = useState(0);
+  const [filterPos, setFilterPos] = useState("");
+  const [filterQuality, setFilterQuality] = useState("");
 
   // Debounce search
   useEffect(() => {
@@ -52,7 +54,7 @@ export default function PlayersClient() {
   // Reset page when filters/sort change
   useEffect(() => {
     setPage(1);
-  }, [sortField, sortOrder, filterSkill, filterMin]);
+  }, [sortField, sortOrder, filterSkill, filterMin, filterPos, filterQuality]);
 
   // Fetch players
   useEffect(() => {
@@ -71,6 +73,8 @@ export default function PlayersClient() {
           );
         }
 
+        if (filterPos) query = query.eq("position", filterPos);
+        if (filterQuality) query = query.eq("quality", filterQuality);
         if (filterSkill !== "All" && filterMin > 0) {
           query = query.gte(`skills->>${filterSkill}`, filterMin);
         }
@@ -111,7 +115,7 @@ export default function PlayersClient() {
 
     fetchPlayers();
     return () => { isMounted = false; };
-  }, [debouncedSearch, sortField, sortOrder, filterSkill, filterMin, page]);
+  }, [debouncedSearch, sortField, sortOrder, filterSkill, filterMin, filterPos, filterQuality, page]);
 
   const allSkills = useMemo(() => {
     const s = new Set<string>(COMMON_SKILLS);
@@ -148,6 +152,38 @@ export default function PlayersClient() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+          </div>
+
+          <div className="w-px h-8 bg-neutral-800 mx-1 self-center hidden sm:block" />
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 flex items-center gap-1">
+              <Filter size={10} /> Position
+            </label>
+            <select
+              aria-label="Filter by position"
+              className="bg-neutral-950 border border-neutral-700 text-sm rounded-lg px-3 py-2 text-neutral-200 outline-none focus:border-emerald-500 transition-colors"
+              value={filterPos}
+              onChange={(e) => setFilterPos(e.target.value)}
+            >
+              <option value="">All Positions</option>
+              {POSITIONS.filter(Boolean).map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 flex items-center gap-1">
+              <Filter size={10} /> Quality
+            </label>
+            <select
+              aria-label="Filter by quality"
+              className="bg-neutral-950 border border-neutral-700 text-sm rounded-lg px-3 py-2 text-neutral-200 outline-none focus:border-emerald-500 transition-colors"
+              value={filterQuality}
+              onChange={(e) => setFilterQuality(e.target.value)}
+            >
+              <option value="">All Qualities</option>
+              {QUALITIES.filter(Boolean).map((q) => <option key={q} value={q}>{q}</option>)}
+            </select>
           </div>
 
           <div className="w-px h-8 bg-neutral-800 mx-1 self-center hidden sm:block" />
@@ -303,7 +339,7 @@ export default function PlayersClient() {
                       <p className="text-base font-medium text-neutral-400">No players found matching your criteria</p>
                       <p className="text-sm mt-1">Try lowering the minimum rating or changing the search/filter parameters.</p>
                       <button
-                        onClick={() => { setFilterSkill("All"); setFilterMin(0); setSearch(""); }}
+                        onClick={() => { setFilterSkill("All"); setFilterMin(0); setSearch(""); setFilterPos(""); setFilterQuality(""); }}
                         className="mt-4 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-sm transition-colors border border-neutral-700 cursor-pointer"
                       >
                         Clear Filters
