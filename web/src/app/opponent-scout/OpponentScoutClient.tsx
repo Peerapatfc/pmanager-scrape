@@ -18,6 +18,7 @@ import {
 
 import { supabase } from "@/lib/supabase";
 import { PAGE_SIZE, DEBOUNCE_MS, POSITIONS } from "@/lib/constants";
+import { formatDeadline } from "@/lib/utils";
 import type { OpponentScoutResult } from "@/types";
 
 export default function OpponentScoutClient() {
@@ -299,16 +300,7 @@ export default function OpponentScoutClient() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-neutral-400 border-r border-neutral-800/60">
-                    {r.scouted_at
-                      ? new Date(r.scouted_at).toLocaleString("en-GB", {
-                          timeZone: "Asia/Bangkok",
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "—"}
+                    {formatDeadline(r.scouted_at)}
                   </td>
                   <td className="px-4 py-3 text-center">
                     {r.player_link ? (

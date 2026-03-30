@@ -5,12 +5,34 @@
  * server and client components.
  */
 
+import { toZonedTime, format } from "date-fns-tz";
+
 import {
   MARGIN_HIGH_THRESHOLD,
   MARGIN_MED_THRESHOLD,
   ROI_HIGH_THRESHOLD,
   ROI_MED_THRESHOLD,
 } from "@/lib/constants";
+
+const BKK = "Asia/Bangkok";
+
+/**
+ * Parse and format a PManager deadline string into Bangkok time.
+ *
+ * Accepts ISO strings, PostgreSQL timestamps ("2026-03-30 14:30:00"),
+ * and TIMESTAMPTZ strings. Returns "—" for null/unparseable values.
+ *
+ * @param value - Raw deadline string from Supabase.
+ * @returns Formatted string like "30/03/2026, 14:30" or "—".
+ */
+export function formatDeadline(value: string | null | undefined): string {
+  if (!value) return "—";
+  // Normalise "YYYY-MM-DD HH:mm:ss" → ISO 8601 with Bangkok offset
+  const iso = value.includes("T") ? value : value.replace(" ", "T") + "+07:00";
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return "—";
+  return format(toZonedTime(date, BKK), "dd/MM/yyyy, HH:mm", { timeZone: BKK });
+}
 
 /**
  * Format a large number as a human-readable string with M/K suffix.

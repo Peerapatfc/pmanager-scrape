@@ -15,7 +15,7 @@ import {
 
 import { supabase } from "@/lib/supabase";
 import { PAGE_SIZE, DEBOUNCE_MS, POSITIONS } from "@/lib/constants";
-import { formatValue, roiColor } from "@/lib/utils";
+import { formatValue, roiColor, formatDeadline } from "@/lib/utils";
 import type { Transfer } from "@/types";
 
 export default function TransfersClient() {
@@ -242,16 +242,7 @@ export default function TransfersClient() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-neutral-400">
-                    {tx.deadline
-                      ? new Date(tx.deadline).toLocaleString("en-GB", {
-                          timeZone: "Asia/Bangkok",
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "-"}
+                    {formatDeadline(tx.deadline)}
                   </td>
                 </tr>
               ))}
