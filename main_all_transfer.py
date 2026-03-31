@@ -95,6 +95,8 @@ def main() -> None:
     df.replace([np.inf, -np.inf], 0, inplace=True)
     numeric_cols = df.select_dtypes(include=[np.number]).columns
     df[numeric_cols] = df[numeric_cols].fillna(0)
+    # Convert any remaining NaN in non-numeric columns to None (→ SQL NULL)
+    df = df.where(pd.notnull(df), other=None)
 
     # Save CSV backup
     csv_file = "transfer_targets_all.csv"

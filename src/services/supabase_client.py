@@ -11,6 +11,7 @@ sending to Supabase, since the client library rejects ``np.int64`` etc.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from supabase import create_client
@@ -44,6 +45,10 @@ class SupabaseManager:
         Returns:
             A JSON-serialisable native Python value.
         """
+        # Handle Python-native float NaN/inf (produced by pandas .to_dict())
+        if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+            return None
+
         try:
             import numpy as np  # optional dependency — only used if pandas is installed
 
@@ -53,7 +58,7 @@ class SupabaseManager:
                 return int(val)
             if isinstance(val, np.floating):
                 v = float(val)
-                return 0 if (np.isnan(v) or np.isinf(v)) else v
+                return None if (np.isnan(v) or np.isinf(v)) else v
             if isinstance(val, np.bool_):
                 return bool(val)
         except ImportError:
