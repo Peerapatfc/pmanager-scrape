@@ -6,7 +6,7 @@ auction deadlines) that are used across multiple scrapers and entry scripts.
 """
 
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def parse_deadline(deadline_str: str | None) -> datetime | None:
@@ -41,7 +41,10 @@ def parse_deadline(deadline_str: str | None) -> datetime | None:
 
     hour = int(time_match.group(1))
     minute = int(time_match.group(2))
-    now = datetime.now()
+    # Use Bangkok time (UTC+7) for the base date so "Today"/"Tomorrow" resolve
+    # correctly even when the scraper runs on a UTC server near midnight.
+    _BKK = timezone(timedelta(hours=7))
+    now = datetime.now(tz=_BKK).replace(tzinfo=None)
 
     lower = txt.lower()
     if "today" in lower:
