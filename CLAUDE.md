@@ -337,7 +337,7 @@ All data is fetched server-side in `page.tsx` files and passed to `*Client.tsx` 
 
 ## Gotchas & Bugs to Avoid
 
-**`parse_deadline()` — no UTC conversion:** PManager displays deadline strings (e.g. `"Today at 14:30"`) already in local time (UTC+7). `parse_deadline()` must NOT apply any UTC offset — use `datetime.now()` as the base, not `utcnow()`. Adding `timedelta(hours=7)` on top of the parsed time shifts all hours by +7 and breaks every deadline comparison.
+**`parse_deadline()` — PManager deadlines are UTC (GMT+0):** PManager displays deadline strings (e.g. `"Today at 14:30"`) in UTC, not local time. The scraper saves them as-is to the DB. The frontend `formatDeadline()` treats stored values as UTC (appends `Z`) and converts to Bangkok time (UTC+7) for display. Do NOT append `+07:00` to stored deadline strings — that would shift the displayed time by −7 hours.
 
 **`src/services/gsheets.py`:** A Google Sheets integration (`SheetManager`) exists but is not part of the main scraper pipeline. Not imported by any entry script — only used if Google Sheets export is needed. Omitted from the project structure above intentionally (optional / legacy).
 

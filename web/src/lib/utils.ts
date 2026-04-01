@@ -30,7 +30,7 @@ export function formatDeadline(value: string | null | undefined): string {
 
   // ISO / PostgreSQL timestamp: "YYYY-MM-DD HH:mm:ss" or "YYYY-MM-DDTHH:mm:ss..."
   if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
-    const iso = value.includes("T") ? value : value.replace(" ", "T") + "+07:00";
+    const iso = value.includes("T") ? value : value.replace(" ", "T") + "Z";
     const date = new Date(iso);
     if (!isNaN(date.getTime())) {
       return format(toZonedTime(date, BKK), "dd/MM/yyyy, HH:mm", { timeZone: BKK });
