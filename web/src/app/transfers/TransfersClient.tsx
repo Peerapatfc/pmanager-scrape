@@ -66,6 +66,7 @@ export default function TransfersClient() {
         if (filterPlusOnly) {
           query = query.gt("forecast_profit", 0);
         }
+        query = query.not("deadline", "is", null).neq("deadline", "");
 
         query = query.order(sortField, { ascending: sortOrder === "asc", nullsFirst: false });
         if (sortField !== "id") {
