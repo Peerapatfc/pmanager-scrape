@@ -27,10 +27,10 @@ export default function TransfersClient() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [sortField, setSortField] = useState("forecast_profit");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [sortField, setSortField] = useState("deadline");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [filterPos, setFilterPos] = useState("");
-  const [filterPlusOnly, setFilterPlusOnly] = useState(false);
+  const [filterPlusOnly, setFilterPlusOnly] = useState(true);
 
   // Debounce search
   useEffect(() => {
@@ -231,8 +231,27 @@ export default function TransfersClient() {
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-800/60">
-              {transfers.map((tx) => (
-                <tr key={tx.id} className="hover:bg-neutral-800/60 transition-colors even:bg-neutral-900/40">
+              {transfers.map((tx) => {
+                const isExpired = tx.deadline
+                  ? new Date(tx.deadline.includes("T") ? tx.deadline : tx.deadline.replace(" ", "T") + "Z") < new Date()
+                  : false;
+                const profit = tx.forecast_profit ?? 0;
+                const tier = profit >= 10_000_000 ? "superb" : profit >= 5_000_000 ? "great" : profit >= 3_000_000 ? "good" : "normal";
+                return (
+                <tr
+                  key={tx.id}
+                  className={`transition-colors ${
+                    isExpired
+                      ? "opacity-30 blur-[1px] even:bg-neutral-900/40"
+                      : tier === "superb"
+                      ? "bg-purple-950/50 hover:bg-purple-900/40 border-l-2 border-l-purple-400/70"
+                      : tier === "great"
+                      ? "bg-emerald-950/40 hover:bg-emerald-900/30 border-l-2 border-l-emerald-500/60"
+                      : tier === "good"
+                      ? "bg-yellow-950/30 hover:bg-yellow-900/20 border-l-2 border-l-yellow-500/50"
+                      : "hover:bg-neutral-800/60 even:bg-neutral-900/40"
+                  }`}
+                >
                   <td className="px-4 py-3 font-medium text-white border-r border-neutral-800/60">
                     <div className="flex flex-col gap-1">
                       {tx.url ? (
@@ -269,7 +288,8 @@ export default function TransfersClient() {
                     {formatDeadline(tx.deadline)}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {!loading && !error && transfers.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center">
