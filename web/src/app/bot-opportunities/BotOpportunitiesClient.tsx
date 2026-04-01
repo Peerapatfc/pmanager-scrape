@@ -31,6 +31,7 @@ export default function BotOpportunitiesClient() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterQuality, setFilterQuality] = useState("");
   const [filterPos, setFilterPos] = useState("");
+  const [filterPlusOnly, setFilterPlusOnly] = useState(true);
   const [sortField, setSortField] = useState("profit_margin");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -46,7 +47,7 @@ export default function BotOpportunitiesClient() {
   // Reset page on filter/sort change
   useEffect(() => {
     setPage(1);
-  }, [filterQuality, filterPos, sortField, sortOrder]);
+  }, [filterQuality, filterPos, filterPlusOnly, sortField, sortOrder]);
 
   // Fetch
   useEffect(() => {
@@ -67,6 +68,9 @@ export default function BotOpportunitiesClient() {
         }
         if (filterPos) {
           query = query.eq("position", filterPos);
+        }
+        if (filterPlusOnly) {
+          query = query.gt("value_diff", 0);
         }
 
         query = query.order(sortField, { ascending: sortOrder === "asc", nullsFirst: false });
@@ -96,11 +100,11 @@ export default function BotOpportunitiesClient() {
 
     fetchData();
     return () => { isMounted = false; };
-  }, [debouncedSearch, filterQuality, filterPos, sortField, sortOrder, page]);
+  }, [debouncedSearch, filterQuality, filterPos, filterPlusOnly, sortField, sortOrder, page]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  const clearFilters = () => { setSearch(""); setFilterQuality(""); setFilterPos(""); };
+  const clearFilters = () => { setSearch(""); setFilterQuality(""); setFilterPos(""); setFilterPlusOnly(false); };
 
   // Margin badge — needs border colour in addition to text/bg
   const marginBadgeClass = (m: number): string => {
@@ -171,6 +175,24 @@ export default function BotOpportunitiesClient() {
             </select>
           </div>
 
+          <div className="flex flex-col gap-1 justify-end">
+            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 flex items-center gap-1">
+              <Filter size={10} /> Value Diff
+            </label>
+            <button
+              onClick={() => setFilterPlusOnly((prev) => !prev)}
+              aria-pressed={filterPlusOnly}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+                filterPlusOnly
+                  ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
+                  : "bg-neutral-950 border-neutral-700 text-neutral-400 hover:border-neutral-600"
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${filterPlusOnly ? "bg-emerald-400" : "bg-neutral-600"}`} />
+              Positive Only
+            </button>
+          </div>
+
           <div className="w-px h-8 bg-neutral-800 mx-1 self-center hidden sm:block" />
 
           <div className="flex flex-col gap-1">
@@ -236,8 +258,22 @@ export default function BotOpportunitiesClient() {
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-800/60">
-              {rows.map((opp) => (
-                <tr key={opp.id} className="hover:bg-neutral-800/60 transition-colors even:bg-neutral-900/40">
+              {rows.map((opp) => {
+                const vd = opp.value_diff ?? 0;
+                const tier = vd >= 10_000_000 ? "superb" : vd >= 5_000_000 ? "great" : vd >= 3_000_000 ? "good" : "normal";
+                return (
+                <tr
+                  key={opp.id}
+                  className={`transition-colors ${
+                    tier === "superb"
+                      ? "bg-purple-950/50 hover:bg-purple-900/40 border-l-2 border-l-purple-400/70"
+                      : tier === "great"
+                      ? "bg-emerald-950/40 hover:bg-emerald-900/30 border-l-2 border-l-emerald-500/60"
+                      : tier === "good"
+                      ? "bg-yellow-950/30 hover:bg-yellow-900/20 border-l-2 border-l-yellow-500/50"
+                      : "hover:bg-neutral-800/60 even:bg-neutral-900/40"
+                  }`}
+                >
                   <td className="px-4 py-3 font-medium text-white border-r border-neutral-800/60">
                     <div className="font-semibold">{opp.name}</div>
                     <div className="text-xs text-neutral-500">ID: {opp.id}</div>
@@ -289,7 +325,8 @@ export default function BotOpportunitiesClient() {
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {!loading && !error && rows.length === 0 && (
                 <tr>
                   <td colSpan={9} className="px-6 py-12 text-center">
