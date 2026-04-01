@@ -30,6 +30,7 @@ export default function TransfersClient() {
   const [sortField, setSortField] = useState("forecast_profit");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [filterPos, setFilterPos] = useState("");
+  const [filterPlusOnly, setFilterPlusOnly] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -43,7 +44,7 @@ export default function TransfersClient() {
   // Reset page when filters/sort change
   useEffect(() => {
     setPage(1);
-  }, [sortField, sortOrder, filterPos]);
+  }, [sortField, sortOrder, filterPos, filterPlusOnly]);
 
   // Fetch transfers
   useEffect(() => {
@@ -61,6 +62,9 @@ export default function TransfersClient() {
         }
         if (filterPos) {
           query = query.eq("position", filterPos);
+        }
+        if (filterPlusOnly) {
+          query = query.gt("forecast_profit", 0);
         }
 
         query = query.order(sortField, { ascending: sortOrder === "asc", nullsFirst: false });
@@ -90,7 +94,7 @@ export default function TransfersClient() {
 
     fetchTransfers();
     return () => { isMounted = false; };
-  }, [debouncedSearch, sortField, sortOrder, filterPos, page]);
+  }, [debouncedSearch, sortField, sortOrder, filterPos, filterPlusOnly, page]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
@@ -138,6 +142,26 @@ export default function TransfersClient() {
               <option value="">All Positions</option>
               {POSITIONS.filter(Boolean).map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
+          </div>
+
+          <div className="w-px h-8 bg-neutral-800 mx-1 self-center hidden sm:block" />
+
+          <div className="flex flex-col gap-1 justify-end">
+            <label className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500 flex items-center gap-1">
+              <Filter size={10} /> Forecast Profit
+            </label>
+            <button
+              onClick={() => setFilterPlusOnly((prev) => !prev)}
+              aria-pressed={filterPlusOnly}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
+                filterPlusOnly
+                  ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
+                  : "bg-neutral-950 border-neutral-700 text-neutral-400 hover:border-neutral-600"
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${filterPlusOnly ? "bg-emerald-400" : "bg-neutral-600"}`} />
+              Positive Only
+            </button>
           </div>
 
           <div className="w-px h-8 bg-neutral-800 mx-1 self-center hidden sm:block" />
@@ -253,7 +277,7 @@ export default function TransfersClient() {
                       <Filter size={32} className="mb-3 opacity-50" />
                       <p className="text-base font-medium text-neutral-400">No transfers found matching your criteria</p>
                       <button
-                        onClick={() => { setFilterPos(""); setSearch(""); }}
+                        onClick={() => { setFilterPos(""); setSearch(""); setFilterPlusOnly(false); }}
                         className="mt-4 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-sm transition-colors border border-neutral-700 cursor-pointer"
                       >
                         Clear Filters
