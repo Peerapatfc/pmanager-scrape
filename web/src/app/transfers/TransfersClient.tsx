@@ -234,7 +234,11 @@ export default function TransfersClient() {
             <tbody className="divide-y divide-neutral-800/60">
               {transfers.map((tx) => {
                 const isExpired = tx.deadline
-                  ? new Date(tx.deadline.includes("T") ? tx.deadline : tx.deadline.replace(" ", "T") + "Z") < new Date()
+                  ? (() => {
+                      let iso = tx.deadline.replace(" ", "T");
+                      if (!/Z$|[+-]\d{2}:\d{2}$/.test(iso)) iso += "+01:00";
+                      return new Date(iso) < new Date();
+                    })()
                   : false;
                 const profit = tx.forecast_profit ?? 0;
                 const tier = profit >= 10_000_000 ? "superb" : profit >= 5_000_000 ? "great" : profit >= 3_000_000 ? "good" : "normal";
