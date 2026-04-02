@@ -2,7 +2,7 @@
 Unit tests for src.core.utils — clean_currency() and parse_deadline().
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -52,21 +52,22 @@ class TestParseDeadline:
     """Tests for parse_deadline()."""
 
     def test_today_deadline(self) -> None:
+        _BKK = timezone(timedelta(hours=7))
+        today_bkk = datetime.now(tz=_BKK).date()
         result = parse_deadline("Today at 14:30")
         assert result is not None
         assert result.hour == 14
         assert result.minute == 30
-        assert result.date() == date.today()
+        assert result.date() == today_bkk
 
     def test_tomorrow_deadline(self) -> None:
-        from datetime import timedelta
-
+        _BKK = timezone(timedelta(hours=7))
+        tomorrow_bkk = datetime.now(tz=_BKK).date() + timedelta(days=1)
         result = parse_deadline("Tomorrow at 08:00")
         assert result is not None
         assert result.hour == 8
         assert result.minute == 0
-        tomorrow = date.today() + timedelta(days=1)
-        assert result.date() == tomorrow
+        assert result.date() == tomorrow_bkk
 
     def test_case_insensitive(self) -> None:
         result = parse_deadline("TODAY AT 10:00")
