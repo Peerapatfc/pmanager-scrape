@@ -14,7 +14,7 @@ import {
   ROI_MED_THRESHOLD,
 } from "@/lib/constants";
 
-const BKK = "Asia/Dhaka"; // UTC+6, no DST
+const BKK = "Asia/Bangkok"; // display timezone UTC+7
 
 /**
  * Parse and format a PManager deadline string into Bangkok time.
@@ -31,7 +31,7 @@ export function formatDeadline(value: string | null | undefined): string {
   // ISO / PostgreSQL timestamp: "YYYY-MM-DD HH:mm:ss" or "YYYY-MM-DDTHH:mm:ss..."
   if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
     let iso = value.replace(" ", "T");
-    if (!/Z$|[+-]\d{2}:\d{2}$/.test(iso)) iso += "Z";
+    if (!/Z$|[+-]\d{2}:\d{2}$/.test(iso)) iso += "+01:00"; // source data is UTC+1
     const date = new Date(iso);
     if (!isNaN(date.getTime())) {
       return format(toZonedTime(date, BKK), "dd/MM/yyyy, HH:mm", { timeZone: BKK });
