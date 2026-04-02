@@ -14,7 +14,7 @@ import {
   ROI_MED_THRESHOLD,
 } from "@/lib/constants";
 
-const BKK = "Asia/Bangkok";
+const BKK = "Asia/Dhaka"; // UTC+6, no DST
 
 /**
  * Parse and format a PManager deadline string into Bangkok time.
