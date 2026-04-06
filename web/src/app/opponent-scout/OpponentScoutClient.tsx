@@ -26,6 +26,7 @@ export default function OpponentScoutClient() {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [playerDbIds, setPlayerDbIds] = useState<Set<string>>(new Set());
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -62,6 +63,8 @@ export default function OpponentScoutClient() {
       setLoading(true);
       setError(null);
 
+      setPlayerDbIds(new Set());
+
       try {
         let query = supabase
           .from("opponent_scout_results")
@@ -87,8 +90,20 @@ export default function OpponentScoutClient() {
         if (supabaseError) throw supabaseError;
 
         if (isMounted) {
-          setRows((data as OpponentScoutResult[]) ?? []);
+          const results = (data as OpponentScoutResult[]) ?? [];
+          setRows(results);
           setTotalCount(count ?? 0);
+
+          if (results.length > 0) {
+            const ids = results.map((r) => r.player_id);
+            const { data: dbMatches } = await supabase
+              .from("players")
+              .select("id")
+              .in("id", ids);
+            if (isMounted) {
+              setPlayerDbIds(new Set((dbMatches ?? []).map((p: { id: string }) => p.id)));
+            }
+          }
         }
       } catch (err) {
         if (isMounted) {
@@ -295,6 +310,7 @@ export default function OpponentScoutClient() {
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Pos</th>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Team ID</th>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800 text-center">Match</th>
+                <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800 text-center">In DB</th>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Scouted At</th>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-neutral-800 text-center">Profile</th>
               </tr>
@@ -322,6 +338,11 @@ export default function OpponentScoutClient() {
                       ? <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-orange-500/20 text-orange-400 border border-orange-500/40">Match</span>
                       : <span className="text-neutral-600 text-xs">—</span>}
                   </td>
+                  <td className="px-4 py-3 text-center border-r border-neutral-800/60">
+                    {playerDbIds.has(r.player_id)
+                      ? <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">In DB</span>
+                      : <span className="text-neutral-600 text-xs">—</span>}
+                  </td>
                   <td className="px-4 py-3 text-neutral-400 border-r border-neutral-800/60">
                     {formatDeadline(r.scouted_at)}
                   </td>
@@ -344,7 +365,7 @@ export default function OpponentScoutClient() {
               ))}
               {!loading && !error && rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
+                  <td colSpan={7} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center text-neutral-500">
                       <Swords size={32} className="mb-3 opacity-50" />
                       <p className="text-base font-medium text-neutral-400">No scout results found</p>
