@@ -16,15 +16,16 @@ from src.scrapers.base import BaseScraper
 class OpponentScraper(BaseScraper):
     """Scrapes the squad listing of an opponent team page."""
 
-    def get_team_players(self, team_url: str) -> list[str]:
-        """Extract all player IDs from an opponent team's squad page.
+    def get_team_players(self, team_url: str) -> tuple[str | None, list[str]]:
+        """Extract the team name and all player IDs from an opponent team's squad page.
 
         Args:
             team_url: Full URL of the team page (e.g.
                 ``https://www.pmanager.org/ver_equipa.asp?equipa=12345``).
 
         Returns:
-            Deduplicated list of player ID strings found in the squad table.
+            A tuple of ``(team_name, player_ids)`` where ``team_name`` may be
+            ``None`` if it cannot be determined from the page.
         """
         logger.info("Navigating to team page: %s", team_url)
         self.page.goto(team_url)
@@ -32,6 +33,22 @@ class OpponentScraper(BaseScraper):
 
         content = self.page.content()
         soup = BeautifulSoup(content, "html.parser")
+
+        # Extract team name from the page <title>, which follows the pattern
+        # "Team Name | PManager.org" or "Team Name - PManager.org"
+        team_name: str | None = None
+        title_tag = soup.find("title")
+        if title_tag:
+            raw = title_tag.get_text(strip=True)
+            for sep in [" | ", " - ", " – "]:
+                if sep in raw:
+                    team_name = raw.split(sep)[0].strip() or None
+                    break
+
+        if team_name:
+            logger.info("Team name: %s", team_name)
+        else:
+            logger.warning("Could not extract team name from page title.")
 
         player_ids: list[str] = []
         rows = soup.find_all("tr", class_=["list1", "list2"])
@@ -49,4 +66,4 @@ class OpponentScraper(BaseScraper):
 
         unique_ids = list(set(player_ids))
         logger.info("Found %d unique players in team.", len(unique_ids))
-        return unique_ids
+        return team_name, unique_ids

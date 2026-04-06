@@ -82,7 +82,7 @@ def main() -> None:
         scraper.start(headless=config.HEADLESS_MODE)
         scraper.login(config.PM_USERNAME, config.PM_PASSWORD)
 
-        opponent_ids = scraper.get_team_players(team_url)
+        team_name, opponent_ids = scraper.get_team_players(team_url)
 
         if not opponent_ids:
             logger.warning("No players found on this team page.")
@@ -91,7 +91,13 @@ def main() -> None:
         matches = {str(pid) for pid in opponent_ids if str(pid) in existing_ids}
 
         logger.info("=" * 50)
-        logger.info("SCOUT REPORT — %d players found, %d watchlist matches", len(opponent_ids), len(matches))
+        logger.info(
+            "SCOUT REPORT — %s (team_id=%s) — %d players found, %d watchlist matches",
+            team_name or "Unknown Team",
+            team_id,
+            len(opponent_ids),
+            len(matches),
+        )
         logger.info("=" * 50)
 
         scouted_at = datetime.now(timezone.utc).isoformat()
@@ -108,7 +114,7 @@ def main() -> None:
             results_to_save.append({
                 "team_id": team_id,
                 "player_id": str(pid),
-                "team_name": None,
+                "team_name": team_name,
                 "player_name": name if rec else None,
                 "position": pos if rec else None,
                 "player_link": f"{_BASE_URL}/ver_jogador.asp?jog_id={pid}",
@@ -116,6 +122,7 @@ def main() -> None:
                 "is_watchlist_match": is_match,
             })
 
+        db.delete_opponent_scout_results_by_team(team_id)
         db.upsert_opponent_scout_results(results_to_save)
         logger.info("Saved %d players to opponent_scout_results.", len(results_to_save))
         logger.info("=" * 50)

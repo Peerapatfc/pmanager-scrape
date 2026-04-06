@@ -429,6 +429,21 @@ class SupabaseManager:
     # opponent_scout_results table
     # ------------------------------------------------------------------
 
+    def delete_opponent_scout_results_by_team(self, team_id: str) -> None:
+        """Delete all existing scout results for a given team.
+
+        Called before re-scouting so stale players (who left the team) are
+        removed rather than left as ghost rows.
+
+        Args:
+            team_id: The team ID whose rows should be deleted.
+        """
+        try:
+            self.client.table("opponent_scout_results").delete().eq("team_id", team_id).execute()
+            logger.info("Cleared old scout results for team_id=%s", team_id)
+        except Exception as e:
+            logger.error("Failed to clear old scout results for team_id=%s: %s", team_id, e)
+
     def upsert_opponent_scout_results(self, results: list[dict[str, Any]]) -> None:
         """Upsert opponent scout match records.
 
