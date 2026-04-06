@@ -185,7 +185,9 @@ export default function OpponentScoutClient() {
             Opponent Scout
           </h1>
           <p className="text-neutral-400 mt-2">
-            Showing {rows.length} of {totalCount} players across {groupedRows.size} team{groupedRows.size !== 1 ? "s" : ""}. Players in your database are highlighted.
+            {playerDbMap.size > 0
+              ? <>{playerDbMap.size} of {totalCount} scouted players are in your database.</>
+              : <>Scouted {totalCount} players across {groupedRows.size} team{groupedRows.size !== 1 ? "s" : ""}.</>}
           </p>
         </div>
 
@@ -346,7 +348,10 @@ export default function OpponentScoutClient() {
               {rows.length > 0 && Array.from(groupedRows.entries()).map(([teamId, teamRows]) => {
                 const teamName = teamRows[0].team_name;
                 const scoutedAt = teamRows[0].scouted_at;
-                const dbMatchCount = teamRows.filter((r) => playerDbMap.has(r.player_id)).length;
+                const dbRows = teamRows.filter((r) => playerDbMap.has(r.player_id));
+
+                // Skip teams with no players in DB
+                if (dbRows.length === 0) return null;
 
                 return (
                   <Fragment key={teamId}>
@@ -359,17 +364,14 @@ export default function OpponentScoutClient() {
                             <span className="font-bold text-orange-300 text-sm">
                               {teamName ?? `Team ${teamId}`}
                             </span>
-                            <span className="text-neutral-600 text-xs font-mono">#{teamId}</span>
+                            {teamName && (
+                              <span className="text-neutral-600 text-xs font-mono">#{teamId}</span>
+                            )}
                           </div>
                           <div className="flex items-center gap-1.5 text-xs text-neutral-500">
                             <Users size={11} />
-                            <span>{teamRows.length} players</span>
+                            <span>{dbRows.length} of {teamRows.length} players in your DB</span>
                           </div>
-                          {dbMatchCount > 0 && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                              {dbMatchCount} in your DB
-                            </span>
-                          )}
                           <span className="text-neutral-600 text-xs ml-auto">
                             Scouted {formatDeadline(scoutedAt)}
                           </span>
@@ -377,8 +379,8 @@ export default function OpponentScoutClient() {
                       </td>
                     </tr>
 
-                    {/* Player rows */}
-                    {teamRows.map((r) => {
+                    {/* Player rows — only those in DB */}
+                    {dbRows.map((r) => {
                       const dbPlayer = playerDbMap.get(r.player_id);
                       const isExpanded = expandedIds.has(r.player_id);
                       return (
