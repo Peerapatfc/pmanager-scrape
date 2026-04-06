@@ -35,17 +35,27 @@ class OpponentScraper(BaseScraper):
         soup = BeautifulSoup(content, "html.parser")
 
         # Extract team name from the General Info table.
-        # The Name row has a <td class="comentarios"> containing "Name" and a
-        # sibling <td class="team_players"> whose first <b> tag is the team name,
-        # e.g. <b>BlueStar06</b> (<b>35859</b>)
+        # The Name row has <td class="comentarios"> containing "Name" and a
+        # sibling <td class="team_players"> with a <font size="+1"> whose text
+        # is the team name, sometimes followed by " (ID)" inside or outside
+        # the font tag.
+        #
+        # Two observed structures:
+        #   A) <font size="+1"><b>BlueStar06</b> (<b>35859</b>)</font>
+        #   B) <font size="+1">F_ck Alex</font>(<b>38349</b>)
+        #
+        # In both cases the font tag's text contains only the name (A includes
+        # the ID too, so we strip a trailing " (digits)" pattern).
         team_name: str | None = None
         for label_td in soup.find_all("td", class_="comentarios"):
             if "name" in label_td.get_text(strip=True).lower():
                 value_td = label_td.find_next_sibling("td")
                 if value_td:
-                    first_b = value_td.find("b")
-                    if first_b:
-                        team_name = first_b.get_text(strip=True) or None
+                    font_tag = value_td.find("font")
+                    if font_tag:
+                        raw = font_tag.get_text(strip=True)
+                        # Strip trailing " (numeric_id)" if present (structure A)
+                        team_name = re.sub(r"\s*\(\d+\)\s*$", "", raw).strip() or None
                 break
 
         if team_name:
