@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useEffect } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
 import {
   Swords,
   ExternalLink,
@@ -16,6 +16,7 @@ import {
   AlertCircle,
   Play,
   CheckCircle2,
+  Users,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -124,6 +125,17 @@ export default function OpponentScoutClient() {
     return () => { isMounted = false; };
   }, [debouncedSearch, filterPos, filterMatchOnly, sortField, sortOrder, page]);
 
+  // Group rows by team_id, preserving order
+  const groupedRows = useMemo(() => {
+    const map = new Map<string, OpponentScoutResult[]>();
+    rows.forEach((r) => {
+      const group = map.get(r.team_id) ?? [];
+      group.push(r);
+      map.set(r.team_id, group);
+    });
+    return map;
+  }, [rows]);
+
   function toggleExpand(playerId: string) {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -161,6 +173,9 @@ export default function OpponentScoutClient() {
     }
   }
 
+  // Column count for colSpan: Player, Pos, Match, In DB, Profile = 5
+  const COL_COUNT = 5;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
@@ -170,7 +185,7 @@ export default function OpponentScoutClient() {
             Opponent Scout
           </h1>
           <p className="text-neutral-400 mt-2">
-            Showing {rows.length} of {totalCount} players. Players in your database are highlighted as matches.
+            Showing {rows.length} of {totalCount} players across {groupedRows.size} team{groupedRows.size !== 1 ? "s" : ""}. Players in your database are highlighted.
           </p>
         </div>
 
@@ -322,151 +337,179 @@ export default function OpponentScoutClient() {
               <tr>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Player</th>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Pos</th>
-                <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Team ID</th>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800 text-center">Match</th>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800 text-center">In DB</th>
-                <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Scouted At</th>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-neutral-800 text-center">Profile</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-800/60">
-              {rows.map((r) => {
-                const dbPlayer = playerDbMap.get(r.player_id);
-                const isExpanded = expandedIds.has(r.player_id);
+              {rows.length > 0 && Array.from(groupedRows.entries()).map(([teamId, teamRows]) => {
+                const teamName = teamRows[0].team_name;
+                const scoutedAt = teamRows[0].scouted_at;
+                const dbMatchCount = teamRows.filter((r) => playerDbMap.has(r.player_id)).length;
+
                 return (
-                  <Fragment key={`${r.team_id}-${r.player_id}`}>
-                    <tr className="hover:bg-neutral-800/60 transition-colors even:bg-neutral-900/40">
-                      <td className="px-4 py-3 font-medium text-white border-r border-neutral-800/60">
-                        <div className="font-semibold">{r.player_name ?? (dbPlayer?.name ?? "—")}</div>
-                        <div className="text-xs text-neutral-500">ID: {r.player_id}</div>
-                      </td>
-                      <td className="px-4 py-3 border-r border-neutral-800/60">
-                        <span className="px-2.5 py-1 rounded-md bg-neutral-800 text-neutral-300 text-xs font-medium border border-neutral-700/50">
-                          {r.position ?? (dbPlayer?.position ?? "—")}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-neutral-300 border-r border-neutral-800/60">
-                        <span className="flex items-center gap-1.5">
-                          <Swords size={13} className="text-neutral-500 shrink-0" />
-                          {r.team_id}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center border-r border-neutral-800/60">
-                        {r.is_watchlist_match
-                          ? <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-orange-500/20 text-orange-400 border border-orange-500/40">Match</span>
-                          : <span className="text-neutral-600 text-xs">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-center border-r border-neutral-800/60">
-                        {dbPlayer ? (
-                          <button
-                            onClick={() => toggleExpand(r.player_id)}
-                            aria-expanded={isExpanded}
-                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 transition-colors cursor-pointer"
-                          >
-                            In DB
-                            {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                          </button>
-                        ) : (
-                          <span className="text-neutral-600 text-xs">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-neutral-400 border-r border-neutral-800/60">
-                        {formatDeadline(r.scouted_at)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {r.player_link ? (
-                          <a
-                            href={r.player_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            aria-label={`View ${r.player_name ?? r.player_id} on PManager`}
-                            className="inline-flex items-center justify-center p-2 rounded-lg bg-neutral-800 text-neutral-300 hover:bg-orange-500/20 hover:text-orange-400 hover:border-orange-500/50 border border-transparent transition-all"
-                          >
-                            <ExternalLink size={15} />
-                          </a>
-                        ) : (
-                          <span className="text-neutral-600">—</span>
-                        )}
+                  <Fragment key={teamId}>
+                    {/* Team group header */}
+                    <tr className="bg-neutral-950/60 border-y border-orange-900/30">
+                      <td colSpan={COL_COUNT} className="px-4 py-2.5">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            <Swords size={14} className="text-orange-400 shrink-0" />
+                            <span className="font-bold text-orange-300 text-sm">
+                              {teamName ?? `Team ${teamId}`}
+                            </span>
+                            <span className="text-neutral-600 text-xs font-mono">#{teamId}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+                            <Users size={11} />
+                            <span>{teamRows.length} players</span>
+                          </div>
+                          {dbMatchCount > 0 && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                              {dbMatchCount} in your DB
+                            </span>
+                          )}
+                          <span className="text-neutral-600 text-xs ml-auto">
+                            Scouted {formatDeadline(scoutedAt)}
+                          </span>
+                        </div>
                       </td>
                     </tr>
 
-                    {/* Expanded player detail row */}
-                    {isExpanded && dbPlayer && (
-                      <tr className="bg-emerald-950/20 border-b border-emerald-800/30">
-                        <td colSpan={7} className="px-6 py-4">
-                          <div className="flex flex-wrap gap-4 items-start">
-                            {/* Basic info */}
-                            <div className="flex flex-col gap-1.5 min-w-[160px]">
-                              <span className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500">Player Info</span>
-                              <div className="font-semibold text-white text-sm">{dbPlayer.name}</div>
-                              <div className="flex flex-wrap gap-1.5 mt-0.5">
-                                <span className="px-2 py-0.5 rounded bg-neutral-800 text-neutral-300 text-xs border border-neutral-700/50">
-                                  {dbPlayer.position}
-                                </span>
-                                <span className="px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 text-xs border border-neutral-700/50">
-                                  Age {dbPlayer.age}
-                                </span>
-                                {dbPlayer.nationality && (
-                                  <span className="px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 text-xs border border-neutral-700/50">
-                                    {dbPlayer.nationality}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex flex-wrap gap-1.5 mt-0.5">
-                                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${qualityColor(dbPlayer.quality)}`}>
-                                  {dbPlayer.quality}
-                                </span>
-                                <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 text-xs font-semibold border border-cyan-500/20">
-                                  {dbPlayer.potential}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="w-px self-stretch bg-neutral-700/50 hidden sm:block" />
-
-                            {/* Skills grid */}
-                            {dbPlayer.skills && Object.keys(dbPlayer.skills).length > 0 && (
-                              <div className="flex flex-col gap-1.5 flex-1 min-w-[240px]">
-                                <span className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500">Skills</span>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {Object.entries(dbPlayer.skills)
-                                    .sort(([, a], [, b]) => b - a)
-                                    .map(([skill, value]) => (
-                                      <span
-                                        key={skill}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-neutral-800 border border-neutral-700/50 text-xs"
-                                      >
-                                        <span className="text-neutral-400">{skill}</span>
-                                        <span className="font-bold text-emerald-400">{value}</span>
-                                      </span>
-                                    ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Profile link */}
-                            {dbPlayer.url && (
-                              <div className="flex flex-col gap-1.5 justify-end self-end">
+                    {/* Player rows */}
+                    {teamRows.map((r) => {
+                      const dbPlayer = playerDbMap.get(r.player_id);
+                      const isExpanded = expandedIds.has(r.player_id);
+                      return (
+                        <Fragment key={`${r.team_id}-${r.player_id}`}>
+                          <tr className="hover:bg-neutral-800/60 transition-colors even:bg-neutral-900/40">
+                            <td className="px-4 py-3 font-medium text-white border-r border-neutral-800/60">
+                              <div className="font-semibold">{r.player_name ?? (dbPlayer?.name ?? "—")}</div>
+                              <div className="text-xs text-neutral-500">ID: {r.player_id}</div>
+                            </td>
+                            <td className="px-4 py-3 border-r border-neutral-800/60">
+                              <span className="px-2.5 py-1 rounded-md bg-neutral-800 text-neutral-300 text-xs font-medium border border-neutral-700/50">
+                                {r.position ?? (dbPlayer?.position ?? "—")}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center border-r border-neutral-800/60">
+                              {r.is_watchlist_match
+                                ? <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-orange-500/20 text-orange-400 border border-orange-500/40">Match</span>
+                                : <span className="text-neutral-600 text-xs">—</span>}
+                            </td>
+                            <td className="px-4 py-3 text-center border-r border-neutral-800/60">
+                              {dbPlayer ? (
+                                <button
+                                  onClick={() => toggleExpand(r.player_id)}
+                                  aria-expanded={isExpanded}
+                                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 transition-colors cursor-pointer"
+                                >
+                                  In DB
+                                  {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                                </button>
+                              ) : (
+                                <span className="text-neutral-600 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {r.player_link ? (
                                 <a
-                                  href={dbPlayer.url}
+                                  href={r.player_link}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-colors text-xs font-semibold"
+                                  aria-label={`View ${r.player_name ?? r.player_id} on PManager`}
+                                  className="inline-flex items-center justify-center p-2 rounded-lg bg-neutral-800 text-neutral-300 hover:bg-orange-500/20 hover:text-orange-400 hover:border-orange-500/50 border border-transparent transition-all"
                                 >
-                                  <ExternalLink size={12} /> View Profile
+                                  <ExternalLink size={15} />
                                 </a>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
+                              ) : (
+                                <span className="text-neutral-600">—</span>
+                              )}
+                            </td>
+                          </tr>
+
+                          {/* Expanded player detail */}
+                          {isExpanded && dbPlayer && (
+                            <tr className="bg-emerald-950/20 border-b border-emerald-800/30">
+                              <td colSpan={COL_COUNT} className="px-6 py-4">
+                                <div className="flex flex-wrap gap-4 items-start">
+                                  {/* Basic info */}
+                                  <div className="flex flex-col gap-1.5 min-w-[160px]">
+                                    <span className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500">Player Info</span>
+                                    <div className="font-semibold text-white text-sm">{dbPlayer.name}</div>
+                                    <div className="flex flex-wrap gap-1.5 mt-0.5">
+                                      <span className="px-2 py-0.5 rounded bg-neutral-800 text-neutral-300 text-xs border border-neutral-700/50">
+                                        {dbPlayer.position}
+                                      </span>
+                                      <span className="px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 text-xs border border-neutral-700/50">
+                                        Age {dbPlayer.age}
+                                      </span>
+                                      {dbPlayer.nationality && (
+                                        <span className="px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 text-xs border border-neutral-700/50">
+                                          {dbPlayer.nationality}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 mt-0.5">
+                                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${qualityColor(dbPlayer.quality)}`}>
+                                        {dbPlayer.quality}
+                                      </span>
+                                      <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 text-xs font-semibold border border-cyan-500/20">
+                                        {dbPlayer.potential}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="w-px self-stretch bg-neutral-700/50 hidden sm:block" />
+
+                                  {/* Skills */}
+                                  {dbPlayer.skills && Object.keys(dbPlayer.skills).length > 0 && (
+                                    <div className="flex flex-col gap-1.5 flex-1 min-w-[240px]">
+                                      <span className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500">Skills</span>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {Object.entries(dbPlayer.skills)
+                                          .sort(([, a], [, b]) => b - a)
+                                          .map(([skill, value]) => (
+                                            <span
+                                              key={skill}
+                                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-neutral-800 border border-neutral-700/50 text-xs"
+                                            >
+                                              <span className="text-neutral-400">{skill}</span>
+                                              <span className="font-bold text-emerald-400">{value}</span>
+                                            </span>
+                                          ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Profile link */}
+                                  {dbPlayer.url && (
+                                    <div className="flex flex-col gap-1.5 justify-end self-end">
+                                      <a
+                                        href={dbPlayer.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-colors text-xs font-semibold"
+                                      >
+                                        <ExternalLink size={12} /> View Profile
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
                   </Fragment>
                 );
               })}
+
               {!loading && !error && rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
+                  <td colSpan={COL_COUNT} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center text-neutral-500">
                       <Swords size={32} className="mb-3 opacity-50" />
                       <p className="text-base font-medium text-neutral-400">No scout results found</p>
