@@ -34,21 +34,24 @@ class OpponentScraper(BaseScraper):
         content = self.page.content()
         soup = BeautifulSoup(content, "html.parser")
 
-        # Extract team name from the page <title>, which follows the pattern
-        # "Team Name | PManager.org" or "Team Name - PManager.org"
+        # Extract team name from the General Info table.
+        # The Name row has a <td class="comentarios"> containing "Name" and a
+        # sibling <td class="team_players"> whose first <b> tag is the team name,
+        # e.g. <b>BlueStar06</b> (<b>35859</b>)
         team_name: str | None = None
-        title_tag = soup.find("title")
-        if title_tag:
-            raw = title_tag.get_text(strip=True)
-            for sep in [" | ", " - ", " – "]:
-                if sep in raw:
-                    team_name = raw.split(sep)[0].strip() or None
-                    break
+        for label_td in soup.find_all("td", class_="comentarios"):
+            if "name" in label_td.get_text(strip=True).lower():
+                value_td = label_td.find_next_sibling("td")
+                if value_td:
+                    first_b = value_td.find("b")
+                    if first_b:
+                        team_name = first_b.get_text(strip=True) or None
+                break
 
         if team_name:
             logger.info("Team name: %s", team_name)
         else:
-            logger.warning("Could not extract team name from page title.")
+            logger.warning("Could not extract team name from General Info table.")
 
         player_ids: list[str] = []
         rows = soup.find_all("tr", class_=["list1", "list2"])
