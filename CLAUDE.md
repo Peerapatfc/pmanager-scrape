@@ -253,6 +253,10 @@ All workflows use `SUPABASE_URL`, `SUPABASE_KEY`, `PM_USERNAME`, `PM_PASSWORD`, 
 
 ## Frontend Dashboard Pages
 
+**Adding a new page:** Create `page.tsx` + `*Client.tsx`, then add nav links in BOTH the desktop `<aside>` and mobile `<header>` in `web/src/app/layout.tsx`.
+
+**Shared TypeScript utilities and shared React components** both go in `web/src/lib/` (no `components/` directory).
+
 | Route | Component | Data Source | Description |
 |-------|-----------|-------------|-------------|
 | `/` | `page.tsx` | Supabase count queries | Stat cards, navigation |
@@ -336,6 +340,12 @@ All data is fetched server-side in `page.tsx` files and passed to `*Client.tsx` 
 ---
 
 ## Gotchas & Bugs to Avoid
+
+**Supabase PostgREST JOIN fails silently when FK column ≠ PK name:** If the FK column (`player_id`) differs from the PK (`id`), the implicit join returns empty results with no error. Fix: two separate queries, merge with a JS `Map`.
+
+**BeautifulSoup `get_text(strip=True)` collapses inter-tag whitespace:** `<b>D</b> RL` → `"DRL"`. Always use `get_text(separator=" ", strip=True)` when tags and adjacent text must be space-separated.
+
+**Position group detection must use `startsWith()`:** Positions scraped from plantel.asp may lack spaces (`"DRL"` not `"D RL"`). Use `p.startsWith("D")` not `split(" ")[0] === "D"`.
 
 **`parse_deadline()` — PManager deadlines are UTC (GMT+0):** PManager displays deadline strings (e.g. `"Today at 14:30"`) in UTC, not local time. The scraper saves them as-is to the DB. The frontend `formatDeadline()` treats stored values as UTC (appends `Z`) and converts to Bangkok time (UTC+7) for display. Do NOT append `+07:00` to stored deadline strings — that would shift the displayed time by −7 hours.
 

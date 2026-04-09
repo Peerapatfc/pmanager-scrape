@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Users,
   Filter,
@@ -16,15 +16,9 @@ import {
 import { supabase } from "@/lib/supabase";
 import { PAGE_SIZE, DEBOUNCE_MS, POSITIONS, QUALITIES } from "@/lib/constants";
 import { qualityColor } from "@/lib/utils";
+import { SKILLS } from "@/lib/skills";
+import { SkillChip } from "@/lib/SkillChip";
 import type { Player } from "@/types";
-
-// Skills to populate the filter/sort dropdown
-const COMMON_SKILLS = [
-  "Pace", "Finishing", "Passing", "Tackling", "Stamina", "Aggression",
-  "Handling", "Reflexes", "Agility", "Crossing", "Dribbling", "Heading",
-  "Positioning", "Strength", "Tech.", "Fitness", "Work Rate", "Vision",
-  "Jumping", "Composure", "Free Kick",
-].sort();
 
 export default function PlayersClient() {
   const [players, setPlayers] = useState<Player[]>([]);
@@ -117,12 +111,6 @@ export default function PlayersClient() {
     return () => { isMounted = false; };
   }, [debouncedSearch, sortField, sortOrder, filterSkill, filterMin, filterPos, filterQuality, page]);
 
-  const allSkills = useMemo(() => {
-    const s = new Set<string>(COMMON_SKILLS);
-    players.forEach((p) => { if (p.skills) Object.keys(p.skills).forEach((k) => s.add(k)); });
-    return Array.from(s).sort();
-  }, [players]);
-
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   return (
@@ -199,7 +187,7 @@ export default function PlayersClient() {
               onChange={(e) => setFilterSkill(e.target.value)}
             >
               <option value="All">All Skills</option>
-              {allSkills.map((s) => <option key={s} value={s}>{s}</option>)}
+              {SKILLS.map(({ abbr, field }) => <option key={field} value={field}>{abbr} — {field}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-1">
@@ -236,7 +224,7 @@ export default function PlayersClient() {
                   <option value="age">Age</option>
                 </optgroup>
                 <optgroup label="Specific Skills">
-                  {allSkills.map((s) => <option key={s} value={`skill:${s}`}>{s}</option>)}
+                  {SKILLS.map(({ abbr, field }) => <option key={field} value={`skill:${field}`}>{abbr} — {field}</option>)}
                 </optgroup>
               </select>
               <button
@@ -279,9 +267,9 @@ export default function PlayersClient() {
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Quality</th>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Potential</th>
                 <th scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800">Nationality</th>
-                {allSkills.map((s) => (
-                  <th key={s} scope="col" className="px-4 py-3 font-semibold border-b border-r border-neutral-800 text-center whitespace-nowrap min-w-[70px]">
-                    <span title={s} className="truncate block cursor-help">{s.substring(0, 4)}</span>
+                {SKILLS.map(({ abbr, field }) => (
+                  <th key={field} scope="col" className="px-1 py-3 font-semibold border-b border-r border-neutral-800 text-center w-10">
+                    <span title={field}>{abbr}</span>
                   </th>
                 ))}
               </tr>
@@ -315,17 +303,20 @@ export default function PlayersClient() {
                   </td>
                   <td className="px-4 py-3 text-cyan-400 font-medium border-r border-neutral-800/60">{player.potential}</td>
                   <td className="px-4 py-3 text-neutral-300 border-r border-neutral-800/60 bg-neutral-900/40">{player.nationality}</td>
-                  {allSkills.map((skill) => {
-                    const value = player.skills?.[skill];
-                    const isHighlighted = filterSkill === skill || sortField === `skill:${skill}`;
+                  {SKILLS.map(({ field }) => {
+                    const raw = player.skills?.[field];
+                    const value = raw != null ? Number(raw) : null;
+                    const isHighlighted = filterSkill === field || sortField === `skill:${field}`;
+                    if (value === null) {
+                      return (
+                        <td key={field} className={`px-1 py-1 text-center border-r border-neutral-800/60 ${isHighlighted ? "bg-emerald-500/5" : ""}`}>
+                          <span className="text-neutral-700 text-[10px]">—</span>
+                        </td>
+                      );
+                    }
                     return (
-                      <td
-                        key={skill}
-                        className={`px-4 py-3 text-center border-r border-neutral-800/60 font-medium ${
-                          isHighlighted ? "bg-emerald-500/10 text-emerald-300" : "text-neutral-400"
-                        }`}
-                      >
-                        {value !== undefined ? value : "-"}
+                      <td key={field} className={`px-1 py-1 border-r border-neutral-800/60 ${isHighlighted ? "ring-1 ring-inset ring-emerald-500/30" : ""}`}>
+                        <SkillChip value={value} title={`${field}: ${value}`} />
                       </td>
                     );
                   })}

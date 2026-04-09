@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { Shield } from "lucide-react";
 import { skillTier } from "@/lib/skillTier";
+import { SKILLS } from "@/lib/skills";
+import { SkillChip } from "@/lib/SkillChip";
 import type { SquadPlayer } from "./page";
 
 // ── Formation data (from PManager tactics/position.txt) ──────────────────────
@@ -36,22 +38,6 @@ const FORMATIONS: Formation[] = [
   { name: "5-3-2 v1", slots: ["GK","LB","CD","CD","CD","RB","CM","CM","CM","CF","CF"] },
   { name: "5-3-2 v2", slots: ["GK","LB","CD","CD","CD","RB","LM","CM","RM","CF","CF"] },
   { name: "5-4-1",    slots: ["GK","LB","CD","CD","CD","RB","LM","CM","CM","RM","CF"] },
-];
-
-// ── Skill display order (abbreviation → DB field name) ──────────────────────
-const SKILLS: { abbr: string; field: string }[] = [
-  { abbr: "Han", field: "Handling" },
-  { abbr: "Cro", field: "Out of Area" },
-  { abbr: "Ref", field: "Reflexes" },
-  { abbr: "Agi", field: "Agility" },
-  { abbr: "Tck", field: "Tackling" },
-  { abbr: "Hea", field: "Heading" },
-  { abbr: "Pas", field: "Passing" },
-  { abbr: "Pos", field: "Positioning" },
-  { abbr: "Fin", field: "Finishing" },
-  { abbr: "Tec", field: "Technique" },
-  { abbr: "Spe", field: "Speed" },
-  { abbr: "Str", field: "Strength" },
 ];
 
 // ── Position helpers ─────────────────────────────────────────────────────────
@@ -169,19 +155,6 @@ const TACTICAL_METRICS: TacticalMetric[] = [
 ];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-function SkillChip({ value }: { value: number }) {
-  const tier = skillTier(value);
-  return (
-    <div
-      className="w-full h-6 rounded flex items-center justify-center text-[10px] font-bold text-white"
-      style={{ backgroundColor: tier.bg }}
-      title={`${value} — ${tier.label}`}
-    >
-      {value}
-    </div>
-  );
-}
 
 function SkillBar({ value }: { value: number }) {
   const tier = skillTier(value);
