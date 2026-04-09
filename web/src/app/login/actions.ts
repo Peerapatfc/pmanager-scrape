@@ -1,5 +1,6 @@
 'use server'
 
+import { timingSafeEqual } from 'crypto'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
@@ -9,9 +10,16 @@ export async function login(
   _prevState: LoginState,
   formData: FormData,
 ): Promise<LoginState> {
-  const password = formData.get('password') as string
+  const password = formData.get('password')
+  if (typeof password !== 'string' || !password) {
+    return { error: 'Invalid password' }
+  }
 
-  if (password === process.env.ADMIN_PASSWORD) {
+  const adminPassword = process.env.ADMIN_PASSWORD
+  if (
+    adminPassword &&
+    timingSafeEqual(Buffer.from(password), Buffer.from(adminPassword))
+  ) {
     const cookieStore = await cookies()
     cookieStore.set('auth_token', password, {
       httpOnly: true,
