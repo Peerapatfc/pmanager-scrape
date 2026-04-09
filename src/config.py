@@ -41,8 +41,8 @@ class Config:
     SHEET_NAME_ALL_PLAYERS: str = "All Players"
     SHEET_NAME_TRANSFER_INFO: str = "Transfer Info"
 
-    # Season
-    CURRENT_SEASON: str = os.getenv("CURRENT_SEASON", "99")
+    # Season — `or "99"` handles the case where secret is set but empty
+    CURRENT_SEASON: str = os.getenv("CURRENT_SEASON") or "99"
 
     # Browser
     HEADLESS_MODE: bool = True

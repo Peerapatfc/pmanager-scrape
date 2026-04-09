@@ -41,26 +41,37 @@ class MatchPrepScraper(BaseScraper):
     def scrape_my_fixtures(self, season: str) -> list[dict]:
         """Scrape my team's fixture list for the given season."""
         url = f"{self.base_url}/calendario.asp?action=equipa&epoca={season}"
+        logger.info("Fetching fixture list: %s", url)
         self.page.goto(url)
+        self.page.wait_for_load_state("networkidle")
         soup = BeautifulSoup(self.page.content(), "html.parser")
         return self._parse_fixture_table(soup, season)
 
     def scrape_opponent_fixtures(self, team_id: str, season: str) -> list[dict]:
         """Scrape an opponent's fixture list to find recent match IDs."""
         url = f"{self.base_url}/calendario.asp?action=equipa&equipa={team_id}&epoca={season}"
+        logger.info("Fetching opponent fixture list: %s", url)
         self.page.goto(url)
+        self.page.wait_for_load_state("networkidle")
         soup = BeautifulSoup(self.page.content(), "html.parser")
         return self._parse_fixture_table(soup, season)
 
     def _parse_fixture_table(self, soup: BeautifulSoup, season: str) -> list[dict]:
         fixtures = []
-        table = soup.find("table")
+        tables = soup.find_all("table")
+        logger.info("Found %d table(s) on fixture page", len(tables))
+        table = tables[0] if tables else None
         if not table:
+            logger.warning("No table found on fixture page — check URL/login")
             return fixtures
 
-        for row in table.find_all("tr")[1:]:
+        rows = table.find_all("tr")[1:]
+        logger.info("Found %d data rows", len(rows))
+
+        for row in rows:
             cells = row.find_all("td")
             if len(cells) < 5:
+                logger.debug("Skipping row with %d cells: %s", len(cells), row.get_text(separator="|", strip=True)[:80])
                 continue
 
             match_type  = cells[0].get_text(separator=" ", strip=True)
