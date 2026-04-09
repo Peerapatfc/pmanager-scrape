@@ -137,8 +137,7 @@ class MatchPrepScraper(BaseScraper):
     def scrape_match_stats(self, match_id: str) -> dict:
         """Scrape Stats tab from relatorio.asp for one match."""
         url = f"{self.base_url}/relatorio.asp?jogo_id={match_id}"
-        self.page.goto(url)
-        self.page.wait_for_load_state("networkidle")
+        self.page.goto(url, wait_until="domcontentloaded")
 
         # Use href="#stats" — "text=Stats" matches the site-wide nav link instead
         try:
