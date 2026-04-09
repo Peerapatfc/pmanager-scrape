@@ -550,7 +550,7 @@ class SupabaseManager:
         """Replace all fixtures for a season."""
         if not fixtures:
             return
-        records = [self._coerce_record(f, {}) for f in fixtures]
+        records = [self._coerce_record(f, ()) for f in fixtures]
         self._upsert_batched("upcoming_fixtures", records)
         logger.info(f"Upserted {len(records)} upcoming fixtures")
 
