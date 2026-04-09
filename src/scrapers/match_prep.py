@@ -123,10 +123,10 @@ class MatchPrepScraper(BaseScraper):
         return list(seen.values())
 
     def _parse_match_date(self, date_str: str) -> str | None:
-        """Parse '09/04/2026 @ 19:00' → ISO string."""
+        """Parse '09/04/2026 @ 19:00' → ISO string with Z suffix."""
         try:
             dt = datetime.strptime(date_str.strip(), "%d/%m/%Y @ %H:%M")
-            return dt.replace(tzinfo=timezone.utc).isoformat()
+            return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         except ValueError:
             return None
 
@@ -143,12 +143,26 @@ class MatchPrepScraper(BaseScraper):
 
     def _parse_match_stats(self, soup: BeautifulSoup, match_id: str) -> dict:
         result = {
-            "match_id":       match_id,
-            "home_formation": None, "away_formation": None,
-            "home_style":     None, "away_style":     None,
-            "home_ats":       {},   "away_ats":       {},
-            "commentary":     "",
+            "match_id":           match_id,
+            "home_team_id":       None,  # extracted from match report General Info
+            "away_team_id":       None,
+            "home_formation":     None, "away_formation": None,
+            "home_style":         None, "away_style":     None,
+            "home_ats":           {},   "away_ats":       {},
+            "commentary":         "",
         }
+
+        # Extract home/away team IDs from General Info table (first two equipa= links)
+        for link in soup.find_all("a", href=re.compile(r"ver_equipa\.asp\?equipa=")):
+            m = re.search(r"equipa=(\d+)", link["href"])
+            if not m:
+                continue
+            tid = m.group(1)
+            if result["home_team_id"] is None:
+                result["home_team_id"] = tid
+            elif result["away_team_id"] is None:
+                result["away_team_id"] = tid
+                break
 
         # Find stats table (contains "Formation" header)
         stats_table = None
@@ -390,14 +404,22 @@ class MatchPrepScraper(BaseScraper):
             if not mid:
                 continue
 
-            # Determine which side the opponent was on
-            is_home = fixture.get("home_team_id") == opponent_team_id
-
             try:
                 stats = self.scrape_match_stats(mid)
             except Exception as exc:
                 logger.warning("Skipping match %s: %s", mid, exc)
                 continue
+
+            # Determine which side the opponent was on using match report team IDs.
+            # Prefer this over the fixture table because opponent calendars on PManager
+            # always place the viewed team on the left — making home_team_id unreliable.
+            report_home_id = stats.get("home_team_id")
+            report_away_id = stats.get("away_team_id")
+            if report_home_id or report_away_id:
+                is_home = report_home_id == opponent_team_id
+            else:
+                # Fallback: use fixture table (may be wrong for opponent calendars)
+                is_home = fixture.get("home_team_id") == opponent_team_id
 
             side = "home" if is_home else "away"
             formation_history.append({

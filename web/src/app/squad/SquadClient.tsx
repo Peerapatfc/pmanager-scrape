@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Shield } from "lucide-react";
+import { Shield, RefreshCw } from "lucide-react";
 import { skillTier } from "@/lib/skillTier";
 import { SKILLS } from "@/lib/skills";
 import { SkillChip } from "@/lib/SkillChip";
@@ -424,6 +424,22 @@ export default function SquadClient({ players }: { players: SquadPlayer[] }) {
   const [activeTab, setActiveTab] = useState<FilterTab>("All");
   const [formationIdx, setFormationIdx] = useState(17); // default: 4-4-2
   const [lineup, setLineup] = useState<(string | null)[]>(Array(11).fill(null));
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  async function handleSync() {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const res = await fetch("/api/squad-sync", { method: "POST" });
+      const data = await res.json();
+      setSyncMsg(data.message ?? data.error ?? "Done");
+    } catch {
+      setSyncMsg("Failed to trigger sync.");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   // Resolve starting eleven from lineup assignments
   const startingEleven = useMemo(() => {
@@ -484,14 +500,29 @@ export default function SquadClient({ players }: { players: SquadPlayer[] }) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold bg-linear-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent mb-1">
-          Squad Analysis
-        </h1>
-        <p className="text-neutral-400 text-sm">
-          {players.length} players
-          {syncedAt && <span className="text-neutral-600 ml-2">· Last synced {syncedAt}</span>}
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-bold bg-linear-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent mb-1">
+            Squad Analysis
+          </h1>
+          <p className="text-neutral-400 text-sm">
+            {players.length} players
+            {syncedAt && <span className="text-neutral-600 ml-2">· Last synced {syncedAt}</span>}
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw size={13} className={syncing ? "animate-spin" : ""} />
+            {syncing ? "Syncing…" : "Sync Squad"}
+          </button>
+          {syncMsg && (
+            <span className="text-[11px] text-neutral-500">{syncMsg}</span>
+          )}
+        </div>
       </div>
 
       {/* Lineup Builder */}

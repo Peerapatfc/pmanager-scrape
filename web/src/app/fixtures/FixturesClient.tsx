@@ -23,7 +23,8 @@ interface Props {
 
 function formatDate(iso: string | null): string {
   if (!iso) return "TBD"
-  const d = new Date(iso.endsWith("Z") ? iso : iso + "Z")
+  const hasTimezone = iso.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(iso)
+  const d = new Date(hasTimezone ? iso : iso + "Z")
   return d.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
