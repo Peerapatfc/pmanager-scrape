@@ -169,31 +169,26 @@ function AnalysisPanel({
   analysis,
   myPlayers,
   season,
-  myTeamName,
+  oppId,
 }: {
   fixture: UpcomingFixture
   analysis: FixtureAnalysis | null
   myPlayers: PlayerWithPos[]
   season: string
-  myTeamName: string
+  oppId: string | null
 }) {
   const [triggering, setTriggering] = useState(false)
   const [triggerMsg, setTriggerMsg] = useState<string | null>(null)
 
-  // Derive opponent ID from fixture — don't rely on stored analysis which may be stale
-  const teamId = fixture.home_team_name === myTeamName
-    ? fixture.away_team_id
-    : fixture.home_team_id
-
   async function handleTrigger() {
-    if (!teamId) return
+    if (!oppId) return
     setTriggering(true)
     setTriggerMsg(null)
     try {
       const res = await fetch("/api/match-prep", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ opponent_team_id: teamId, season }),
+        body: JSON.stringify({ opponent_team_id: oppId, season }),
       })
       const data = await res.json()
       setTriggerMsg(data.message ?? data.error ?? "Unknown response")
@@ -454,7 +449,7 @@ export default function FixturesClient({ fixtures, analysisMap, myPlayers, seaso
                 analysis={selectedAnalysis}
                 myPlayers={myPlayers}
                 season={season}
-                myTeamName={myTeamName}
+                oppId={selectedOppId}
               />
             ) : (
               <div className="text-center py-12 text-neutral-500">
