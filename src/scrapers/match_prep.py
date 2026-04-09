@@ -138,14 +138,6 @@ class MatchPrepScraper(BaseScraper):
         """Scrape Stats tab from relatorio.asp for one match."""
         url = f"{self.base_url}/relatorio.asp?jogo_id={match_id}"
         self.page.goto(url, wait_until="domcontentloaded")
-
-        # Use href="#stats" — "text=Stats" matches the site-wide nav link instead
-        try:
-            self.page.click("a[href='#stats']")
-            self.page.wait_for_timeout(800)
-        except Exception:
-            pass
-
         soup = BeautifulSoup(self.page.content(), "html.parser")
         return self._parse_match_stats(soup, match_id)
 
@@ -168,11 +160,11 @@ class MatchPrepScraper(BaseScraper):
         if stats_table:
             for row in stats_table.find_all("tr"):
                 cells = row.find_all("td")
-                if len(cells) < 3:
+                if len(cells) < 4:
                     continue
                 label    = cells[0].get_text(strip=True).lower()
                 home_val = cells[1].get_text(strip=True)
-                away_val = cells[2].get_text(strip=True)
+                away_val = cells[3].get_text(strip=True)  # cells[2] is a spacer column
 
                 if "formation" in label:
                     result["home_formation"] = home_val
