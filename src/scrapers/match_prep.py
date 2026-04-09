@@ -103,7 +103,7 @@ class MatchPrepScraper(BaseScraper):
             away_name = away_cell.get_text(separator=" ", strip=True)
 
             fixtures.append({
-                "match_id":       match_id or f"{season}_{home_name}_{away_name}",
+                "match_id":       match_id or f"{season}_{date_str}_{home_name}_{away_name}",
                 "match_date":     self._parse_match_date(date_str),
                 "match_type":     match_type,
                 "home_team_id":   home_id,
@@ -113,7 +113,12 @@ class MatchPrepScraper(BaseScraper):
                 "result":         result_text,
                 "season":         season,
             })
-        return fixtures
+
+        # Deduplicate by match_id (last occurrence wins, preserving most recent scrape)
+        seen: dict[str, dict] = {}
+        for f in fixtures:
+            seen[f["match_id"]] = f
+        return list(seen.values())
 
     def _parse_match_date(self, date_str: str) -> str | None:
         """Parse '09/04/2026 @ 19:00' → ISO string."""
