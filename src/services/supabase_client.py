@@ -569,11 +569,7 @@ class SupabaseManager:
     # ------------------------------------------------------------------
 
     def upsert_fixture_analysis(self, data: dict) -> None:
-        record = self._coerce_record(data, {
-            "formation_history": None,
-            "at_patterns": None,
-            "opponent_players": None,
-        })
+        record = self._coerce_record(data, ())
         self.client.table("fixture_analysis").upsert(record).execute()
         logger.info(f"Upserted fixture_analysis for {data.get('opponent_team_id')}")
 
