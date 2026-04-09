@@ -2,8 +2,9 @@
 Supabase database client for pmanager-scrape.
 
 Provides :class:`SupabaseManager` which wraps all database operations
-(upserts, reads, deletes) for the four project tables: ``players``,
-``transfer_listings``, ``bot_opportunities``, and ``team_info``.
+(upserts, reads, deletes) for the six project tables: ``players``,
+``transfer_listings``, ``bot_opportunities``, ``team_info``,
+``upcoming_fixtures``, and ``fixture_analysis``.
 
 All write methods coerce NumPy / Pandas types to native Python before
 sending to Supabase, since the client library rejects ``np.int64`` etc.
@@ -550,38 +551,49 @@ class SupabaseManager:
         """Replace all fixtures for a season."""
         if not fixtures:
             return
-        records = [self._coerce_record(f, ()) for f in fixtures]
+        records = [{k: self._to_native(v) for k, v in f.items()} for f in fixtures]
         self._upsert_batched("upcoming_fixtures", records)
-        logger.info(f"Upserted {len(records)} upcoming fixtures")
+        logger.info("Upserted %d upcoming fixtures", len(records))
 
     def get_upcoming_fixtures(self, season: str) -> list[dict]:
-        res = (
-            self.client.table("upcoming_fixtures")
-            .select("*")
-            .eq("season", season)
-            .order("match_date")
-            .execute()
-        )
-        return res.data or []
+        try:
+            res = (
+                self.client.table("upcoming_fixtures")
+                .select("*")
+                .eq("season", season)
+                .order("match_date")
+                .execute()
+            )
+            return res.data or []
+        except Exception as exc:
+            logger.error("Failed to fetch upcoming_fixtures: %s", exc)
+            return []
 
     # ------------------------------------------------------------------
     # fixture_analysis table
     # ------------------------------------------------------------------
 
     def upsert_fixture_analysis(self, data: dict) -> None:
-        record = self._coerce_record(data, ())
-        self.client.table("fixture_analysis").upsert(record).execute()
-        logger.info(f"Upserted fixture_analysis for {data.get('opponent_team_id')}")
+        try:
+            record = {k: self._to_native(v) for k, v in data.items()}
+            self.client.table("fixture_analysis").upsert(record).execute()
+            logger.info("Upserted fixture_analysis for %s", data.get("opponent_team_id"))
+        except Exception as exc:
+            logger.error("Failed to upsert fixture_analysis: %s", exc)
 
     def get_fixture_analysis(self, opponent_team_id: str) -> dict | None:
-        res = (
-            self.client.table("fixture_analysis")
-            .select("*")
-            .eq("opponent_team_id", opponent_team_id)
-            .maybe_single()
-            .execute()
-        )
-        return res.data
+        try:
+            res = (
+                self.client.table("fixture_analysis")
+                .select("*")
+                .eq("opponent_team_id", opponent_team_id)
+                .maybe_single()
+                .execute()
+            )
+            return res.data
+        except Exception as exc:
+            logger.error("Failed to fetch fixture_analysis for %s: %s", opponent_team_id, exc)
+            return None
 
     # ------------------------------------------------------------------
     # players table — proxy lookup
