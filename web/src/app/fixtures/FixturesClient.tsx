@@ -86,6 +86,18 @@ function buildOppSettings(analysis: FixtureAnalysis) {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
+const AT_LABEL: Record<string, string> = {
+  keeping:       "Keeping Style",
+  offside_trap:  "Offside Trap",
+  counter_attack:"Counter Attack",
+  high_balls:    "High Balls",
+  one_on_ones:   "One on Ones",
+  first_time:    "First Time Shots",
+  long_shots:    "Long Shots",
+  marking:       "Marking",
+  pressing:      "Pressing",
+}
+
 function PatternBar({ pattern, label }: { pattern: ATPatternRecord; label: string }) {
   const pct = pattern.total_matches > 0
     ? Math.round((pattern.enabled_count / pattern.total_matches) * 100)
@@ -294,8 +306,29 @@ function AnalysisPanel({
             <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-2">AT Usage Patterns</div>
             <div className="space-y-2">
               {Object.entries(analysis.at_patterns).map(([key, pat]) => (
-                <PatternBar key={key} label={key.replace(/_/g, " ")} pattern={pat as ATPatternRecord} />
+                <PatternBar
+                  key={key}
+                  label={AT_LABEL[key] ?? key.replace(/_/g, " ")}
+                  pattern={pat as ATPatternRecord}
+                />
               ))}
+              {/* Fallback: show Keeping Style from matchup data when old analysis has no at_patterns.keeping */}
+              {!analysis.at_patterns.keeping && analysis.team_archetype && (() => {
+                const keepingMatchup = matchups.find(m => m.name.startsWith("Keeping"))
+                if (!keepingMatchup) return null
+                const setting = keepingMatchup.opponentEnabled
+                  ? keepingMatchup.name.replace("Keeping ", "").replace(/[()]/g, "")
+                  : "Not Defined"
+                return (
+                  <div key="keeping-fallback" className="space-y-1">
+                    <div className="flex justify-between text-xs text-neutral-300">
+                      <span>Keeping Style</span>
+                      <span className="text-cyan-400">· {setting}</span>
+                    </div>
+                    <div className="h-1.5 bg-neutral-700 rounded-full overflow-hidden" />
+                  </div>
+                )
+              })()}
               {Object.keys(analysis.at_patterns).length === 0 && (
                 <p className="text-xs text-neutral-600">No AT data collected yet.</p>
               )}
