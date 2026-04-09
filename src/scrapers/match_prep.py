@@ -1,6 +1,7 @@
 # src/scrapers/match_prep.py
 """Scraper for fixture schedules, match reports (formation + ATs), and opponent rosters."""
 import re
+from datetime import datetime, timezone
 from statistics import mean
 
 from bs4 import BeautifulSoup
@@ -101,7 +102,6 @@ class MatchPrepScraper(BaseScraper):
     def _parse_match_date(self, date_str: str) -> str | None:
         """Parse '09/04/2026 @ 19:00' → ISO string."""
         try:
-            from datetime import datetime, timezone
             dt = datetime.strptime(date_str.strip(), "%d/%m/%Y @ %H:%M")
             return dt.replace(tzinfo=timezone.utc).isoformat()
         except ValueError:
@@ -170,8 +170,10 @@ class MatchPrepScraper(BaseScraper):
                     result["home_ats"]["one_on_ones"] = home_val.lower() == "yes"
                     result["away_ats"]["one_on_ones"] = away_val.lower() == "yes"
                 elif "marking" in label:
-                    result["home_ats"]["marking"] = home_val   # "Zonal"/"Man to Man"/"Not Defined"
-                    result["away_ats"]["marking"] = away_val
+                    result["home_ats"]["zonal_marking"] = home_val == "Zonal"
+                    result["away_ats"]["zonal_marking"] = away_val == "Zonal"
+                    result["home_ats"]["man_marking"] = home_val in ("Man to Man", "Man-to-Man")
+                    result["away_ats"]["man_marking"] = away_val in ("Man to Man", "Man-to-Man")
                 elif "high ball" in label:
                     result["home_ats"]["high_balls"] = home_val.lower() == "yes"
                     result["away_ats"]["high_balls"] = away_val.lower() == "yes"
@@ -179,8 +181,8 @@ class MatchPrepScraper(BaseScraper):
                     result["home_ats"]["keeping"] = home_val   # "Stand In"/"Rushing Out"/"Not Defined"
                     result["away_ats"]["keeping"] = away_val
                 elif "first time" in label:
-                    result["home_ats"]["first_time_shots"] = home_val.lower() == "yes"
-                    result["away_ats"]["first_time_shots"] = away_val.lower() == "yes"
+                    result["home_ats"]["first_time"] = home_val.lower() == "yes"
+                    result["away_ats"]["first_time"] = away_val.lower() == "yes"
                 elif "long shot" in label:
                     result["home_ats"]["long_shots"] = home_val.lower() == "yes"
                     result["away_ats"]["long_shots"] = away_val.lower() == "yes"
@@ -266,12 +268,23 @@ class MatchPrepScraper(BaseScraper):
         return "speed" if mean(speeds) > mean(strengths) else "strength"
 
     def enrich_roster(
-        self, roster: list[dict], archetype: str, sm: SupabaseManager
+        self,
+        roster: list[dict],
+        archetype: str,
+        sm: SupabaseManager,
+        skills_map: dict[str, dict] | None = None,
     ) -> list[dict]:
         """Add 'skills' and 'source' to each player dict."""
         enriched: list[dict] = []
         for player in roster:
-            # Exact DB match by player ID
+            # Use pre-fetched skills map if provided (avoids per-player DB round-trips)
+            if skills_map is not None and player["id"] in skills_map:
+                player["skills"] = skills_map[player["id"]]
+                player["source"] = "db"
+                enriched.append(player)
+                continue
+
+            # Exact DB match by player ID (fallback when no skills_map)
             res = sm.client.table("players").select("skills").eq("id", player["id"]).execute()
             if res.data:
                 player["skills"] = res.data[0]["skills"] or {}
@@ -393,18 +406,18 @@ class MatchPrepScraper(BaseScraper):
         # Enrich roster
         roster = self.scrape_opponent_roster(opponent_team_id)
 
-        # First pass: get exact DB players to detect archetype
-        known_for_archetype: list[dict] = []
-        for player in roster:
-            res = sm.client.table("players").select("skills").eq("id", player["id"]).execute()
-            if res.data:
-                player["skills"] = res.data[0]["skills"] or {}
-                known_for_archetype.append(player)
+        # Batch fetch skills for all roster players in a single query
+        ids = [p["id"] for p in roster]
+        res = sm.client.table("players").select("id, skills").in_("id", ids).execute()
+        skills_map = {r["id"]: r["skills"] or {} for r in (res.data or [])}
 
+        known_for_archetype = [
+            {**p, "skills": skills_map[p["id"]]} for p in roster if p["id"] in skills_map
+        ]
         archetype = self.detect_archetype(known_for_archetype)
         logger.info("Opponent archetype: %s", archetype)
 
-        enriched = self.enrich_roster(roster, archetype, sm)
+        enriched = self.enrich_roster(roster, archetype, sm, skills_map=skills_map)
 
         return {
             "opponent_team_id":    opponent_team_id,

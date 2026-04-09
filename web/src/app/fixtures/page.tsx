@@ -1,19 +1,11 @@
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "@/lib/supabase"
 import type { UpcomingFixture, FixtureAnalysis } from "@/types"
 import type { PlayerWithPos } from "@/lib/atCalculations"
 import FixturesClient from "./FixturesClient"
 
 export const revalidate = 60
 
-function makeClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-}
-
 async function getFixtures(season: string): Promise<UpcomingFixture[]> {
-  const supabase = makeClient()
   const { data, error } = await supabase
     .from("upcoming_fixtures")
     .select("*")
@@ -27,7 +19,6 @@ async function getFixtures(season: string): Promise<UpcomingFixture[]> {
 }
 
 async function getAllAnalyses(): Promise<Record<string, FixtureAnalysis>> {
-  const supabase = makeClient()
   const { data, error } = await supabase
     .from("fixture_analysis")
     .select("*")
@@ -43,8 +34,6 @@ async function getAllAnalyses(): Promise<Record<string, FixtureAnalysis>> {
 }
 
 async function getMyPlayers(): Promise<PlayerWithPos[]> {
-  const supabase = makeClient()
-
   // Fetch squad membership
   const { data: squadData, error: squadError } = await supabase
     .from("my_squad")

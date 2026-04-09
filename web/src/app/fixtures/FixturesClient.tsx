@@ -70,14 +70,14 @@ function buildOppSettings(analysis: FixtureAnalysis) {
   const isEnabled  = (key: string) => (p[key]?.enabled_count ?? 0) > 0
 
   return {
-    pressing:         isEnabled("pressing") ? (mostCommon("pressing") ?? undefined) : undefined,
+    pressing:         isEnabled("pressing") ? mostCommon("pressing") : undefined,
     offside_trap:     isEnabled("offside_trap"),
     counter_attack:   isEnabled("counter_attack"),
     high_balls:       isEnabled("high_balls"),
     one_on_ones:      isEnabled("one_on_ones"),
-    marking:          isEnabled("marking") ? (mostCommon("marking") ?? undefined) : undefined,
+    marking:          isEnabled("marking") ? mostCommon("marking") : undefined,
     keeping:          mostCommon("keeping") ?? undefined,
-    first_time_shots: isEnabled("first_time_shots"),
+    first_time_shots: isEnabled("first_time"),
     long_shots:       isEnabled("long_shots"),
   }
 }

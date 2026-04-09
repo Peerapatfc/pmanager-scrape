@@ -79,7 +79,7 @@ export function calculateATMatchups(
     one_on_ones?: boolean
     marking?: string
     keeping?: string
-    first_time_shots?: boolean
+    first_time?: boolean
     long_shots?: boolean
   }
 ): ATMatchup[] {
@@ -202,16 +202,16 @@ export function calculateATMatchups(
   }
 
   // ── FIRST TIME SHOTS ──────────────────────────────────────────────────
-  if (oppSettings.first_time_shots) {
+  if (oppSettings.first_time) {
     const hasThreeFwds = oppFW.length >= 3
     if (!hasThreeFwds) {
-      matchups.push({ name: "First Time Shots", opponentEnabled: false, ...pat(atPatterns, "first_time_shots"), conditions: [], result: "na" })
+      matchups.push({ name: "First Time Shots", opponentEnabled: false, ...pat(atPatterns, "first_time"), conditions: [], result: "na" })
     } else {
       const cs = [cond("Fin+Hea (opp FW) vs Ref_GK+Hea_DF (mine)", (skillAvg(myGK, "Reflexes") + skillAvg(myDF, "Heading")) / 2, skillAvg(oppFW, "Finishing", "Heading"))]
-      matchups.push({ name: "First Time Shots", opponentEnabled: true, ...pat(atPatterns, "first_time_shots"), conditions: cs, result: resolve(cs) })
+      matchups.push({ name: "First Time Shots", opponentEnabled: true, ...pat(atPatterns, "first_time"), conditions: cs, result: resolve(cs) })
     }
   } else {
-    matchups.push({ name: "First Time Shots", opponentEnabled: false, ...pat(atPatterns, "first_time_shots"), conditions: [], result: "na" })
+    matchups.push({ name: "First Time Shots", opponentEnabled: false, ...pat(atPatterns, "first_time"), conditions: [], result: "na" })
   }
 
   return matchups
