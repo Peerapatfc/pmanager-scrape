@@ -25,10 +25,10 @@ const SKILLS: { abbr: string; field: string }[] = [
 type PosGroup = "GK" | "D" | "M" | "F";
 
 function posGroup(position: string): PosGroup {
-  const first = position.trim().split(" ")[0].toUpperCase();
-  if (first === "GK") return "GK";
-  if (first === "D") return "D";
-  if (first === "M") return "M";
+  const p = position.trim().toUpperCase();
+  if (p.startsWith("GK")) return "GK";
+  if (p.startsWith("D")) return "D";
+  if (p.startsWith("M")) return "M";
   return "F";
 }
 

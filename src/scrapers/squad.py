@@ -114,7 +114,8 @@ class SquadScraper(BaseScraper):
         name = link.get_text(strip=True)
 
         # Position (cell index 1) — e.g. "GK", "D C", "M RC", "F L"
-        position = cells[1].get_text(strip=True)
+        # Use separator=" " so inner whitespace between bold tag and subtype is kept.
+        position = cells[1].get_text(separator=" ", strip=True)
 
         # Age (cell index 3)
         try:
