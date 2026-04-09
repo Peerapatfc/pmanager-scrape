@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import Link from 'next/link';
-import { LayoutDashboard, Users, ArrowRightLeft, Bot, Swords, Shield, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, Users, ArrowRightLeft, Bot, Swords, Shield, CalendarDays, LogOut } from 'lucide-react';
+import { logout } from './login/actions';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -56,6 +57,17 @@ export default function RootLayout({
               <span>Match Prep</span>
             </Link>
           </nav>
+          <div className="p-4 border-t border-neutral-800">
+            <form action={logout}>
+              <button
+                type="submit"
+                className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-neutral-800 transition-colors text-neutral-500 hover:text-neutral-300 w-full"
+              >
+                <LogOut size={20} />
+                <span>Sign Out</span>
+              </button>
+            </form>
+          </div>
         </aside>
 
         {/* Main Content */}
@@ -73,6 +85,11 @@ export default function RootLayout({
               <Link href="/opponent-scout" className="text-orange-400 hover:text-orange-300"><Swords size={20} /></Link>
               <Link href="/squad" className="text-indigo-400 hover:text-indigo-300"><Shield size={20} /></Link>
               <Link href="/fixtures" className="text-rose-400 hover:text-rose-300"><CalendarDays size={20} /></Link>
+              <form action={logout}>
+                <button type="submit" className="text-neutral-500 hover:text-neutral-300">
+                  <LogOut size={20} />
+                </button>
+              </form>
             </nav>
           </header>
 
