@@ -58,11 +58,15 @@ class MatchPrepScraper(BaseScraper):
 
     def _parse_fixture_table(self, soup: BeautifulSoup, season: str) -> list[dict]:
         fixtures = []
-        tables = soup.find_all("table")
-        logger.info("Found %d table(s) on fixture page", len(tables))
-        table = tables[0] if tables else None
+        # The page has 2 tables: [0] season selector (1 cell), [1] fixtures (class table_border)
+        table = soup.find("table", class_="table_border")
         if not table:
-            logger.warning("No table found on fixture page — check URL/login")
+            # fallback: try second table if class not found
+            tables = soup.find_all("table")
+            logger.info("Found %d table(s) on fixture page (table_border not found)", len(tables))
+            table = tables[1] if len(tables) > 1 else (tables[0] if tables else None)
+        if not table:
+            logger.warning("No fixture table found on page — check URL/login")
             return fixtures
 
         rows = table.find_all("tr")[1:]
@@ -78,7 +82,8 @@ class MatchPrepScraper(BaseScraper):
             date_str    = cells[1].get_text(strip=True)
             home_cell   = cells[2]
             away_cell   = cells[4]
-            result_text = cells[5].get_text(strip=True) if len(cells) > 5 else ""
+            # &nbsp; in result cell = upcoming match (no score yet)
+            result_text = cells[5].get_text(strip=True).replace("\xa0", "") if len(cells) > 5 else ""
 
             # Match ID from "Match Report" link
             match_id = None
