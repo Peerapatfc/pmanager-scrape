@@ -8,6 +8,7 @@ CREATE TABLE upcoming_fixtures (
     home_team_name  TEXT,
     away_team_id    TEXT,
     away_team_name  TEXT,
+    result          TEXT,
     season          TEXT,
     scraped_at      TIMESTAMPTZ DEFAULT NOW()
 );
