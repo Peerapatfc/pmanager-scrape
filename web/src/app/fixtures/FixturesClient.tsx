@@ -16,6 +16,7 @@ interface Props {
   analysisMap: Record<string, FixtureAnalysis>
   myPlayers: PlayerWithPos[]
   season: string
+  myTeamName: string
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -168,19 +169,23 @@ function AnalysisPanel({
   analysis,
   myPlayers,
   season,
+  myTeamName,
 }: {
   fixture: UpcomingFixture
   analysis: FixtureAnalysis | null
   myPlayers: PlayerWithPos[]
   season: string
+  myTeamName: string
 }) {
   const [triggering, setTriggering] = useState(false)
   const [triggerMsg, setTriggerMsg] = useState<string | null>(null)
 
-  const oppId = analysis?.opponent_team_id ?? null
+  // Derive opponent ID from fixture — don't rely on stored analysis which may be stale
+  const teamId = fixture.home_team_name === myTeamName
+    ? fixture.away_team_id
+    : fixture.home_team_id
 
   async function handleTrigger() {
-    const teamId = oppId ?? (fixture.home_team_id || fixture.away_team_id)
     if (!teamId) return
     setTriggering(true)
     setTriggerMsg(null)
@@ -370,19 +375,17 @@ function AnalysisPanel({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function FixturesClient({ fixtures, analysisMap, myPlayers, season }: Props) {
+export default function FixturesClient({ fixtures, analysisMap, myPlayers, season, myTeamName }: Props) {
   const [selected, setSelected] = useState<UpcomingFixture | null>(
     fixtures.length > 0 ? fixtures[0] : null
   )
 
-  // Derive opponent team id for selected fixture
+  // Derive opponent team id: the team that isn't ours
   function getOpponentId(fixture: UpcomingFixture): string | null {
-    const analysis = Object.values(analysisMap).find(
-      a =>
-        a.opponent_team_id === fixture.home_team_id ||
-        a.opponent_team_id === fixture.away_team_id
-    )
-    return analysis?.opponent_team_id ?? fixture.away_team_id ?? fixture.home_team_id
+    if (fixture.home_team_name === myTeamName) return fixture.away_team_id ?? null
+    if (fixture.away_team_name === myTeamName) return fixture.home_team_id ?? null
+    // fallback when myTeamName unavailable
+    return fixture.away_team_id ?? fixture.home_team_id ?? null
   }
 
   const selectedOppId = selected ? getOpponentId(selected) : null
@@ -451,6 +454,7 @@ export default function FixturesClient({ fixtures, analysisMap, myPlayers, seaso
                 analysis={selectedAnalysis}
                 myPlayers={myPlayers}
                 season={season}
+                myTeamName={myTeamName}
               />
             ) : (
               <div className="text-center py-12 text-neutral-500">

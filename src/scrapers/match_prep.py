@@ -138,11 +138,12 @@ class MatchPrepScraper(BaseScraper):
         """Scrape Stats tab from relatorio.asp for one match."""
         url = f"{self.base_url}/relatorio.asp?jogo_id={match_id}"
         self.page.goto(url)
+        self.page.wait_for_load_state("networkidle")
 
-        # Click the Stats tab
+        # Use href="#stats" — "text=Stats" matches the site-wide nav link instead
         try:
-            self.page.click("text=Stats")
-            self.page.wait_for_timeout(600)
+            self.page.click("a[href='#stats']")
+            self.page.wait_for_timeout(800)
         except Exception:
             pass
 

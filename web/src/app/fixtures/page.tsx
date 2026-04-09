@@ -33,6 +33,11 @@ async function getAllAnalyses(): Promise<Record<string, FixtureAnalysis>> {
   return map
 }
 
+async function getMyTeamName(): Promise<string> {
+  const { data } = await supabase.from("team_info").select("team_name").limit(1).single()
+  return data?.team_name ?? ""
+}
+
 async function getMyPlayers(): Promise<PlayerWithPos[]> {
   // Fetch squad membership
   const { data: squadData, error: squadError } = await supabase
@@ -68,10 +73,11 @@ async function getMyPlayers(): Promise<PlayerWithPos[]> {
 export default async function FixturesPage() {
   const season = process.env.NEXT_PUBLIC_CURRENT_SEASON ?? "99"
 
-  const [fixtures, analysisMap, myPlayers] = await Promise.all([
+  const [fixtures, analysisMap, myPlayers, myTeamName] = await Promise.all([
     getFixtures(season),
     getAllAnalyses(),
     getMyPlayers(),
+    getMyTeamName(),
   ])
 
   return (
@@ -80,6 +86,7 @@ export default async function FixturesPage() {
       analysisMap={analysisMap}
       myPlayers={myPlayers}
       season={season}
+      myTeamName={myTeamName}
     />
   )
 }
