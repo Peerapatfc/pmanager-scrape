@@ -474,6 +474,59 @@ class SupabaseManager:
             logger.error("Failed to fetch opponent_scout_results: %s", e)
             return []
 
+    # ------------------------------------------------------------------
+    # my_squad table
+    # ------------------------------------------------------------------
+
+    def upsert_my_squad(self, records: list[dict[str, Any]]) -> None:
+        """Full-replace the ``my_squad`` table with fresh squad membership.
+
+        Deletes all existing rows, then inserts the provided records so that
+        players who left the squad are automatically removed.
+
+        Args:
+            records: List of dicts with keys ``player_id`` (str) and
+                ``position`` (str).
+        """
+        if not records:
+            logger.warning("upsert_my_squad called with empty records — skipping")
+            return
+
+        try:
+            self.client.table("my_squad").delete().neq("player_id", "0").execute()
+            logger.info("Cleared all rows from 'my_squad'")
+        except Exception as e:
+            logger.error("Failed to clear my_squad: %s", e)
+
+        rows = [
+            {"player_id": str(r["player_id"]), "position": r["position"]}
+            for r in records
+        ]
+        try:
+            self.client.table("my_squad").insert(rows).execute()
+            logger.info("Inserted %d rows into 'my_squad'", len(rows))
+        except Exception as e:
+            logger.error("Failed to insert my_squad rows: %s", e)
+
+    def get_my_squad_with_skills(self) -> list[dict[str, Any]]:
+        """Fetch squad members joined with their player profiles.
+
+        Returns:
+            List of dicts with ``player_id``, ``position``, ``synced_at``
+            and a nested ``players`` dict containing ``name``, ``age``,
+            ``quality``, ``potential`` and ``skills`` JSONB.
+        """
+        try:
+            resp = (
+                self.client.table("my_squad")
+                .select("player_id, position, synced_at, players(name, age, quality, potential, skills)")
+                .execute()
+            )
+            return resp.data or []
+        except Exception as e:
+            logger.error("Failed to fetch my_squad with skills: %s", e)
+            return []
+
     def get_team_info(self) -> dict[str, Any] | None:
         """Fetch the single team info row.
 

@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { Users, ArrowRightLeft, TrendingUp, Bot, Swords } from "lucide-react";
+import { Users, ArrowRightLeft, TrendingUp, Bot, Swords, Shield } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -10,6 +10,7 @@ interface Stats {
   transfers: number;
   bots: number;
   opponents: number;
+  squad: number;
 }
 
 interface StatsCardProps {
@@ -50,12 +51,13 @@ function StatsCard({
 }
 
 async function getStats(): Promise<Stats> {
-  const [{ count: playersCount }, { count: transfersCount }, { count: botCount }, { count: opponentCount }] =
+  const [{ count: playersCount }, { count: transfersCount }, { count: botCount }, { count: opponentCount }, { count: squadCount }] =
     await Promise.all([
       supabase.from("players").select("*", { count: "exact", head: true }),
       supabase.from("transfer_listings").select("*", { count: "exact", head: true }),
       supabase.from("bot_opportunities").select("*", { count: "exact", head: true }),
       supabase.from("opponent_scout_results").select("*", { count: "exact", head: true }),
+      supabase.from("my_squad").select("*", { count: "exact", head: true }),
     ]);
 
   return {
@@ -63,6 +65,7 @@ async function getStats(): Promise<Stats> {
     transfers: transfersCount ?? 0,
     bots: botCount ?? 0,
     opponents: opponentCount ?? 0,
+    squad: squadCount ?? 0,
   };
 }
 
@@ -120,6 +123,16 @@ export default async function DashboardPage() {
           linkHref="/opponent-scout"
           linkLabel="View scout results"
           linkColor="text-orange-400"
+        />
+        <StatsCard
+          title="My Squad"
+          count={stats.squad}
+          icon={<Shield size={24} />}
+          iconBg="bg-indigo-500/10 text-indigo-400"
+          hoverBorder="hover:border-indigo-500/50"
+          linkHref="/squad"
+          linkLabel="View squad analysis"
+          linkColor="text-indigo-400"
         />
       </div>
     </div>
