@@ -21,13 +21,13 @@ AT_COMMENTARY_KEYS = {
     "pressing":       ["pressing", "press"],
     "offside_trap":   ["offside"],
     "counter_attack": ["counter-attack", "counter attack", "counter"],
-    "high_balls":     ["high ball", "heading ability"],
+    "high_balls":     ["high ball", "heading ability", "aerial plays"],
     "one_on_ones":    ["one-on-one", "one on one"],
-    "zonal_marking":  ["marking style", "zonal"],
-    "man_marking":    ["man-to-man", "man to man"],
+    "marking":        ["marking style", "zonal", "man-to-man", "man to man"],
     "long_shots":     ["long shot", "long-shot"],
     "first_time":     ["first time", "first-time"],
-    "keeping":        ["rushing out", "rush out", "stand in"],
+    # Commentary uses "style is confusing" — never names the specific style
+    "keeping":        ["rushing out", "rush out", "stand in", "style is confusing", "confusing the opposite"],
 }
 
 
@@ -191,10 +191,8 @@ class MatchPrepScraper(BaseScraper):
                     result["home_ats"]["one_on_ones"] = home_val.lower() == "yes"
                     result["away_ats"]["one_on_ones"] = away_val.lower() == "yes"
                 elif "marking" in label:
-                    result["home_ats"]["zonal_marking"] = home_val == "Zonal"
-                    result["away_ats"]["zonal_marking"] = away_val == "Zonal"
-                    result["home_ats"]["man_marking"] = home_val in ("Man to Man", "Man-to-Man")
-                    result["away_ats"]["man_marking"] = away_val in ("Man to Man", "Man-to-Man")
+                    result["home_ats"]["marking"] = home_val  # "Zonal" | "Man to Man"
+                    result["away_ats"]["marking"] = away_val
                 elif "high ball" in label:
                     result["home_ats"]["high_balls"] = home_val.lower() == "yes"
                     result["away_ats"]["high_balls"] = away_val.lower() == "yes"

@@ -182,14 +182,14 @@ export function calculateATMatchups(
     const oppDM = [...oppDF, ...oppMF]
     const myMF_ = [...myMF,  ...myFW]
     const cs = [cond("Spd+Tck (opp DF/MF) vs Pos+Spd (my MF/FW)", skillAvg(myMF_, "Positioning", "Speed"), skillAvg(oppDM, "Speed", "Tackling"))]
-    matchups.push({ name: "Zonal Marking", opponentEnabled: true, ...pat(atPatterns, "zonal_marking"), conditions: cs, result: resolve(cs) })
+    matchups.push({ name: "Zonal Marking", opponentEnabled: true, ...pat(atPatterns, "marking"), conditions: cs, result: resolve(cs) })
   } else if (marking === "Man to Man" || marking === "Man-to-Man") {
     const oppDM = [...oppDF, ...oppMF]
     const myMF_ = [...myMF,  ...myFW]
     const cs = [cond("Str+Tck (opp DF/MF) vs Pos+Str (my MF/FW)", skillAvg(myMF_, "Positioning", "Strength"), skillAvg(oppDM, "Strength", "Tackling"))]
-    matchups.push({ name: "Man-to-Man Marking", opponentEnabled: true, ...pat(atPatterns, "man_marking"), conditions: cs, result: resolve(cs) })
+    matchups.push({ name: "Man-to-Man Marking", opponentEnabled: true, ...pat(atPatterns, "marking"), conditions: cs, result: resolve(cs) })
   } else {
-    matchups.push({ name: "Marking", opponentEnabled: false, ...pat(atPatterns, "zonal_marking"), conditions: [], result: "na" })
+    matchups.push({ name: "Marking", opponentEnabled: false, ...pat(atPatterns, "marking"), conditions: [], result: "na" })
   }
 
   // ── LONG SHOTS ────────────────────────────────────────────────────────
