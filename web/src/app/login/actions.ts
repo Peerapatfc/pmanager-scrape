@@ -1,3 +1,4 @@
+// web/src/app/login/actions.ts
 'use server'
 
 import { timingSafeEqual } from 'crypto'
@@ -16,12 +17,20 @@ export async function login(
   }
 
   const adminPassword = process.env.ADMIN_PASSWORD
-  if (
-    adminPassword &&
-    timingSafeEqual(Buffer.from(password), Buffer.from(adminPassword))
-  ) {
+  if (!adminPassword) {
+    return { error: 'Server misconfiguration' }
+  }
+
+  let match = false
+  try {
+    match = timingSafeEqual(Buffer.from(password), Buffer.from(adminPassword))
+  } catch {
+    match = false
+  }
+
+  if (match) {
     const cookieStore = await cookies()
-    cookieStore.set('auth_token', password, {
+    cookieStore.set('auth_token', adminPassword, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
