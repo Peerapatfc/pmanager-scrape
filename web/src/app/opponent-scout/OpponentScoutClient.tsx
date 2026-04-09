@@ -24,6 +24,175 @@ import { PAGE_SIZE, DEBOUNCE_MS, POSITIONS } from "@/lib/constants";
 import { formatDeadline, qualityColor } from "@/lib/utils";
 import type { OpponentScoutResult, Player } from "@/types";
 
+// ── AT Matchup types & helpers ────────────────────────────────────────────────
+interface MySquadPlayer { id: string; position: string; skills: Record<string, number> }
+
+function posG(pos: string | null | undefined): "GK" | "D" | "M" | "F" {
+  const p = (pos ?? "").trim().toUpperCase();
+  if (p.startsWith("GK")) return "GK";
+  if (p.startsWith("D")) return "D";
+  if (p.startsWith("M")) return "M";
+  return "F";
+}
+
+function avgSk<T extends { skills: Record<string, number> }>(players: T[], field: string): number {
+  if (!players.length) return 0;
+  return players.reduce((s, p) => s + (p.skills?.[field] ?? 0), 0) / players.length;
+}
+
+interface ATMatchup {
+  label: string;
+  mine: number | null;
+  theirs: number | null;
+  /** true=win, false=lose, null=N/A */
+  result: boolean | null;
+  partial?: boolean;
+}
+
+function computeATMatchup(my: MySquadPlayer[], opp: Player[]): ATMatchup[] {
+  type P = { skills: Record<string, number> };
+  const myAll = my as unknown as P[];
+  const oppAll = opp as unknown as P[];
+  const myGK  = my.filter(p => posG(p.position) === "GK") as unknown as P[];
+  const myD   = my.filter(p => posG(p.position) === "D")  as unknown as P[];
+  const myMF  = my.filter(p => ["M","F"].includes(posG(p.position))) as unknown as P[];
+  const myDM  = my.filter(p => ["D","M"].includes(posG(p.position))) as unknown as P[];
+  const myF   = my.filter(p => posG(p.position) === "F")  as unknown as P[];
+  const oppGK = opp.filter(p => posG(p.position) === "GK") as unknown as P[];
+  const oppD  = opp.filter(p => posG(p.position) === "D")  as unknown as P[];
+  const oppMF = opp.filter(p => ["M","F"].includes(posG(p.position))) as unknown as P[];
+  const oppDM = opp.filter(p => ["D","M"].includes(posG(p.position))) as unknown as P[];
+  const oppF  = opp.filter(p => posG(p.position) === "F")  as unknown as P[];
+
+  const a = (arr: P[], f: string) => avgSk(arr as unknown as MySquadPlayer[], f);
+
+  function multi(conditions: { mine: number; theirs: number; lowerIsBetter?: boolean }[]): ATMatchup["result"] | { partial: boolean; result: boolean } {
+    const wins = conditions.filter(c => c.lowerIsBetter ? c.mine < c.theirs : c.mine > c.theirs).length;
+    if (wins === conditions.length) return true;
+    if (wins === 0) return false;
+    return { partial: true, result: false };
+  }
+
+  function row(label: string, conditions: { mine: number; theirs: number; lowerIsBetter?: boolean }[]): ATMatchup {
+    const res = multi(conditions);
+    const mine = conditions[0].mine;
+    const theirs = conditions[0].theirs;
+    if (typeof res === "object") return { label, mine, theirs, result: false, partial: true };
+    return { label, mine, theirs, result: res };
+  }
+
+  function single(label: string, mine: number | null, theirs: number | null): ATMatchup {
+    if (mine === null || theirs === null) return { label, mine, theirs, result: null };
+    return { label, mine, theirs, result: mine > theirs };
+  }
+
+  const results: ATMatchup[] = [
+    row("Pressing – High", [
+      { mine: a(myAll, "Speed"),   theirs: a(oppAll, "Speed") },
+      { mine: a(myAll, "Passing"), theirs: a(oppAll, "Passing") },
+    ]),
+    row("Pressing – Low", [
+      { mine: a(myAll, "Speed"),    theirs: a(oppAll, "Speed"),    lowerIsBetter: true },
+      { mine: a(myAll, "Tackling"), theirs: a(oppAll, "Tackling") },
+    ]),
+    row("Counter Attack", [
+      { mine: a(myAll, "Speed"),   theirs: a(oppAll, "Speed") },
+      { mine: a(myAll, "Passing"), theirs: a(oppAll, "Passing") },
+    ]),
+    row("Offside Trap", [
+      { mine: a(myD, "Positioning"), theirs: a(oppF, "Positioning") },
+      { mine: a(myD, "Speed"),       theirs: a(oppF, "Speed") },
+    ]),
+    row("High Balls", [
+      { mine: a(myAll, "Heading"),  theirs: a(oppAll, "Heading") },
+      { mine: a(myAll, "Strength"), theirs: a(oppAll, "Strength") },
+    ]),
+    single("One on Ones",
+      myMF.length  ? (a(myMF,  "Technique") + a(myMF,  "Strength")) / 2 : null,
+      oppDM.length ? (a(oppDM, "Tackling")  + a(oppDM, "Strength")) / 2 : null,
+    ),
+    single("Keeping – Stand In",
+      myGK.length ? (a(myGK, "Reflexes") + a(myGK, "Handling"))   / 2 : null,
+      oppF.length  ? (a(oppF,  "Heading")  + a(oppF,  "Finishing")) / 2 : null,
+    ),
+    single("Keeping – Rush Out",
+      myGK.length ? (a(myGK, "Agility") + a(myGK, "Out of Area")) / 2 : null,
+      oppF.length  ? (a(oppF,  "Heading") + a(oppF,  "Technique"))  / 2 : null,
+    ),
+    single("Marking – Zonal",
+      myDM.length  ? (a(myDM,  "Speed")    + a(myDM,  "Tackling"))    / 2 : null,
+      oppMF.length ? (a(oppMF, "Positioning") + a(oppMF, "Speed"))     / 2 : null,
+    ),
+    single("Marking – Man to Man",
+      myDM.length  ? (a(myDM,  "Strength") + a(myDM,  "Tackling"))    / 2 : null,
+      oppMF.length ? (a(oppMF, "Positioning") + a(oppMF, "Strength"))  / 2 : null,
+    ),
+    single("Long Shots",
+      myMF.length                    ? (a(myMF,  "Finishing") + a(myMF,  "Technique"))  / 2 : null,
+      oppGK.length && oppD.length    ? (a(oppGK, "Agility")   + a(oppD,  "Positioning")) / 2 : null,
+    ),
+    (() => {
+      if (myF.length < 3) return { label: "First Time Shots", mine: null, theirs: null, result: null };
+      return single("First Time Shots",
+        (a(myF,  "Finishing") + a(myF,  "Heading"))  / 2,
+        oppGK.length && oppD.length ? (a(oppGK, "Reflexes") + a(oppD, "Heading")) / 2 : null,
+      );
+    })(),
+  ];
+  return results;
+}
+
+function ATMatchupPanel({ my, opp, teamName }: { my: MySquadPlayer[]; opp: Player[]; teamName: string }) {
+  const matchups = useMemo(() => computeATMatchup(my, opp), [my, opp]);
+  const hasData = opp.some(p => Object.keys(p.skills ?? {}).length > 0);
+
+  return (
+    <div className="mt-3 border border-neutral-700/50 rounded-xl overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2 bg-neutral-800/60 border-b border-neutral-700/50">
+        <Swords size={12} className="text-orange-400" />
+        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+          AT Matchup vs {teamName}
+        </span>
+        {my.length < 11 && (
+          <span className="ml-auto text-[9px] text-yellow-500/80 italic">Select starting 11 on Squad page for best accuracy</span>
+        )}
+        {!hasData && (
+          <span className="ml-auto text-[9px] text-red-500/80 italic">Opponent skill data sparse — results may be inaccurate</span>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-neutral-700/30 text-xs">
+        {matchups.map(({ label, mine, theirs, result, partial }) => (
+          <div key={label} className="flex items-center gap-2 px-4 py-2 bg-neutral-900">
+            <span className="text-neutral-400 w-36 shrink-0 text-[11px]">{label}</span>
+            {result === null ? (
+              <span className="text-neutral-600 italic text-[10px]">N/A</span>
+            ) : (
+              <>
+                <span className="font-mono text-[11px] text-neutral-300 w-8 text-right shrink-0">
+                  {mine !== null ? mine.toFixed(1) : "—"}
+                </span>
+                <span className="text-neutral-600 text-[10px] shrink-0">vs</span>
+                <span className="font-mono text-[11px] text-neutral-500 w-8 shrink-0">
+                  {theirs !== null ? theirs.toFixed(1) : "—"}
+                </span>
+                <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                  partial
+                    ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/25"
+                    : result
+                    ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/25"
+                    : "text-red-400 bg-red-500/10 border-red-500/25"
+                }`}>
+                  {partial ? "~ Partial" : result ? "✓ Win" : "✗ Lose"}
+                </span>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function OpponentScoutClient() {
   const [rows, setRows] = useState<OpponentScoutResult[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -40,10 +209,36 @@ export default function OpponentScoutClient() {
   const [sortField, setSortField] = useState("scouted_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
+  // My squad (for AT matchup)
+  const [mySquad, setMySquad] = useState<MySquadPlayer[]>([]);
+  const [atExpanded, setAtExpanded] = useState<Set<string>>(new Set());
+
   // Trigger form
   const [teamTarget, setTeamTarget] = useState("");
   const [triggering, setTriggering] = useState(false);
   const [triggerStatus, setTriggerStatus] = useState<{ ok: boolean; message: string } | null>(null);
+
+  // Fetch my squad for AT matchup
+  useEffect(() => {
+    async function fetchMySquad() {
+      const { data: squadData } = await supabase
+        .from("my_squad")
+        .select("player_id, position");
+      if (!squadData?.length) return;
+      const ids = squadData.map((r: { player_id: string }) => r.player_id);
+      const { data: playersData } = await supabase
+        .from("players")
+        .select("id, skills")
+        .in("id", ids);
+      const map = new Map((playersData ?? []).map((p: { id: string; skills: Record<string, number> }) => [p.id, p.skills]));
+      setMySquad(squadData.map((r: { player_id: string; position: string }) => ({
+        id: r.player_id,
+        position: r.position,
+        skills: (map.get(r.player_id) as Record<string, number>) ?? {},
+      })));
+    }
+    fetchMySquad();
+  }, []);
 
   // Debounce search
   useEffect(() => {
@@ -375,6 +570,20 @@ export default function OpponentScoutClient() {
                           <span className="text-neutral-600 text-xs ml-auto">
                             Scouted {formatDeadline(scoutedAt)}
                           </span>
+                          <button
+                            onClick={() => setAtExpanded(prev => {
+                              const next = new Set(prev);
+                              next.has(teamId) ? next.delete(teamId) : next.add(teamId);
+                              return next;
+                            })}
+                            className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border transition-colors ${
+                              atExpanded.has(teamId)
+                                ? "bg-orange-500/20 border-orange-500/40 text-orange-400"
+                                : "bg-neutral-800 border-neutral-700 text-neutral-500 hover:border-orange-500/40 hover:text-orange-400"
+                            }`}
+                          >
+                            <Swords size={10} /> AT
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -505,6 +714,19 @@ export default function OpponentScoutClient() {
                         </Fragment>
                       );
                     })}
+
+                    {/* AT Matchup panel */}
+                    {atExpanded.has(teamId) && (
+                      <tr className="bg-neutral-950/40">
+                        <td colSpan={COL_COUNT} className="px-4 pb-4">
+                          <ATMatchupPanel
+                            my={mySquad}
+                            opp={dbRows.map(r => playerDbMap.get(r.player_id)).filter((p): p is Player => p !== undefined)}
+                            teamName={teamName ?? `Team ${teamId}`}
+                          />
+                        </td>
+                      </tr>
+                    )}
                   </Fragment>
                 );
               })}

@@ -83,6 +83,13 @@ function avg(values: number[]): number {
   return values.reduce((s, v) => s + v, 0) / values.length;
 }
 
+function atRec(value: number | null): { label: string; cls: string } | null {
+  if (value === null) return null;
+  if (value >= 13) return { label: "✓ Enable",      cls: "text-emerald-400 bg-emerald-500/10 border-emerald-500/25" };
+  if (value >= 9)  return { label: "~ Situational", cls: "text-yellow-400 bg-yellow-500/10 border-yellow-500/25" };
+  return             { label: "✗ Avoid",        cls: "text-red-400 bg-red-500/10 border-red-500/25" };
+}
+
 // ── Tactical rating definitions ───────────────────────────────────────────────
 interface TacticalMetric {
   label: string;
@@ -378,24 +385,32 @@ function TacticalPanel({ players, fromLineup }: { players: SquadPlayer[]; fromLi
         )}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
-        {metrics.map(({ label, value }) => (
-          <div key={label} className="flex items-center gap-3">
-            <span className="text-xs text-neutral-400 w-40 shrink-0">{label}</span>
-            {value === null ? (
-              <span className="text-xs text-neutral-600 italic">N/A</span>
-            ) : (
-              <>
-                <SkillBar value={Math.round(value * 10) / 10} />
-                <span
-                  className="text-[10px] font-semibold w-20 shrink-0"
-                  style={{ color: skillTier(Math.round(value)).color }}
-                >
-                  {skillTier(Math.round(value)).label}
-                </span>
-              </>
-            )}
-          </div>
-        ))}
+        {metrics.map(({ label, value }) => {
+          const rec = atRec(value);
+          return (
+            <div key={label} className="flex items-center gap-3">
+              <span className="text-xs text-neutral-400 w-40 shrink-0">{label}</span>
+              {value === null ? (
+                <span className="text-xs text-neutral-600 italic">N/A</span>
+              ) : (
+                <>
+                  <SkillBar value={Math.round(value * 10) / 10} />
+                  <span
+                    className="text-[10px] font-semibold w-20 shrink-0"
+                    style={{ color: skillTier(Math.round(value)).color }}
+                  >
+                    {skillTier(Math.round(value)).label}
+                  </span>
+                  {rec && (
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${rec.cls}`}>
+                      {rec.label}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
