@@ -81,17 +81,19 @@ class MatchPrepScraper(BaseScraper):
             match_type  = cells[0].get_text(separator=" ", strip=True)
             date_str    = cells[1].get_text(strip=True)
             home_cell   = cells[2]
-            away_cell   = cells[4]
+            # Columns: Match Type | Date | Home | vs | Away | Result | Match
+            away_cell   = cells[4] if len(cells) > 4 else cells[2]
             # &nbsp; in result cell = upcoming match (no score yet)
             result_text = cells[5].get_text(strip=True).replace("\xa0", "") if len(cells) > 5 else ""
 
-            # Match ID from "Match Report" link
+            # Match ID from "Match Report" link — search all cells (column may vary)
             match_id = None
-            if len(cells) > 6:
-                link = cells[6].find("a")
+            for cell in cells:
+                link = cell.find("a", href=re.compile(r"jogo_id="))
                 if link:
-                    m = re.search(r"jogo_id=(\d+)", link.get("href", ""))
+                    m = re.search(r"jogo_id=(\d+)", link["href"])
                     match_id = m.group(1) if m else None
+                    break
 
             # Team IDs from name links
             home_link = home_cell.find("a")
@@ -352,12 +354,44 @@ class MatchPrepScraper(BaseScraper):
         logger.info("Building analysis for team %s, season %s", opponent_team_id, season)
 
         opp_fixtures = self.scrape_opponent_fixtures(opponent_team_id, season)
-        completed = [f for f in opp_fixtures if f.get("result", "").strip()]
+
+        # Extract opponent name from any fixture (upcoming or past)
+        opponent_team_name = ""
+        for f in opp_fixtures:
+            is_home_f = f.get("home_team_id") == opponent_team_id
+            candidate = f["home_team_name"] if is_home_f else f["away_team_name"]
+            if candidate:
+                opponent_team_name = candidate
+                break
+
+        # Completed = has a numeric match_id (match report link present), not our fallback
+        completed = [f for f in opp_fixtures if str(f.get("match_id", "")).isdigit()]
+
+        # Pre-season: no completed matches yet — fall back to previous season
+        if not completed:
+            prev_season = str(int(season) - 1)
+            logger.info(
+                "No completed fixtures in season %s — trying previous season %s",
+                season, prev_season,
+            )
+            prev_fixtures = self.scrape_opponent_fixtures(opponent_team_id, prev_season)
+            completed = [f for f in prev_fixtures if str(f.get("match_id", "")).isdigit()]
+            if not opponent_team_name:
+                for f in prev_fixtures:
+                    is_home_f = f.get("home_team_id") == opponent_team_id
+                    candidate = f["home_team_name"] if is_home_f else f["away_team_name"]
+                    if candidate:
+                        opponent_team_name = candidate
+                        break
+
         recent_10 = completed[-10:]
+        logger.info(
+            "Found %d completed fixtures for team %s (using last 10)",
+            len(completed), opponent_team_id,
+        )
 
         formation_history: list[dict] = []
         at_accumulator: dict[str, list] = {}
-        opponent_team_name = ""
 
         for fixture in recent_10:
             mid = fixture.get("match_id")
@@ -366,10 +400,6 @@ class MatchPrepScraper(BaseScraper):
 
             # Determine which side the opponent was on
             is_home = fixture.get("home_team_id") == opponent_team_id
-            if not opponent_team_name:
-                opponent_team_name = (
-                    fixture["home_team_name"] if is_home else fixture["away_team_name"]
-                )
 
             try:
                 stats = self.scrape_match_stats(mid)
