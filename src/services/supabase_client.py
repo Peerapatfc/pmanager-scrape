@@ -541,3 +541,110 @@ class SupabaseManager:
         except Exception as e:
             logger.error("Failed to fetch team_info: %s", e)
             return None
+
+    # ------------------------------------------------------------------
+    # upcoming_fixtures table
+    # ------------------------------------------------------------------
+
+    def upsert_upcoming_fixtures(self, fixtures: list[dict]) -> None:
+        """Replace all fixtures for a season."""
+        if not fixtures:
+            return
+        records = [self._coerce_record(f, {}) for f in fixtures]
+        self._upsert_batched("upcoming_fixtures", records)
+        logger.info(f"Upserted {len(records)} upcoming fixtures")
+
+    def get_upcoming_fixtures(self, season: str) -> list[dict]:
+        res = (
+            self.client.table("upcoming_fixtures")
+            .select("*")
+            .eq("season", season)
+            .order("match_date")
+            .execute()
+        )
+        return res.data or []
+
+    # ------------------------------------------------------------------
+    # fixture_analysis table
+    # ------------------------------------------------------------------
+
+    def upsert_fixture_analysis(self, data: dict) -> None:
+        record = self._coerce_record(data, {
+            "formation_history": None,
+            "at_patterns": None,
+            "opponent_players": None,
+        })
+        self.client.table("fixture_analysis").upsert(record).execute()
+        logger.info(f"Upserted fixture_analysis for {data.get('opponent_team_id')}")
+
+    def get_fixture_analysis(self, opponent_team_id: str) -> dict | None:
+        res = (
+            self.client.table("fixture_analysis")
+            .select("*")
+            .eq("opponent_team_id", opponent_team_id)
+            .maybe_single()
+            .execute()
+        )
+        return res.data
+
+    # ------------------------------------------------------------------
+    # players table — proxy lookup
+    # ------------------------------------------------------------------
+
+    def find_proxy_players(
+        self,
+        position_prefix: str,
+        age: int,
+        quality: str,
+        archetype: str,
+        limit: int = 5,
+    ) -> list[dict]:
+        """Find similar players for skill estimation.
+
+        position_prefix: 'GK', 'D', 'M', or 'F' (GK is exact; others use startswith in Python)
+        archetype: 'speed' | 'strength'
+        Returns up to `limit` player dicts with 'skills' key.
+        """
+        # Fetch candidates by age + quality (PostgREST can't do LIKE on position)
+        res = (
+            self.client.table("players")
+            .select("id, position, skills")
+            .eq("age", age)
+            .eq("quality", quality)
+            .execute()
+        )
+        all_rows = res.data or []
+
+        # Filter by position prefix
+        if position_prefix == "GK":
+            rows = [r for r in all_rows if r.get("position", "") == "GK"]
+        else:
+            rows = [r for r in all_rows if r.get("position", "").startswith(position_prefix)]
+
+        def matches_archetype(skills: dict) -> bool:
+            spd = skills.get("Speed", 0) if skills else 0
+            str_ = skills.get("Strength", 0) if skills else 0
+            return (spd > str_) if archetype == "speed" else (str_ > spd)
+
+        # Try with archetype filter first
+        matching = [r for r in rows if r.get("skills") and matches_archetype(r["skills"])]
+
+        # Fallback 1: drop archetype, keep position + age + quality
+        if len(matching) < 3:
+            matching = rows
+
+        # Fallback 2: drop quality too, retry with just position + age
+        if len(matching) < 3:
+            res2 = (
+                self.client.table("players")
+                .select("id, position, skills")
+                .eq("age", age)
+                .execute()
+            )
+            all2 = res2.data or []
+            if position_prefix == "GK":
+                matching = [r for r in all2 if r.get("position", "") == "GK"]
+            else:
+                matching = [r for r in all2 if r.get("position", "").startswith(position_prefix)]
+
+        return matching[:limit]
