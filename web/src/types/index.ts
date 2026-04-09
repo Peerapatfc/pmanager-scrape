@@ -84,3 +84,52 @@ export interface TeamInfo {
   current_division?: string;
   recorded_at?: string;
 }
+
+export interface UpcomingFixture {
+  match_id: string
+  match_date: string | null
+  match_type: string
+  home_team_id: string | null
+  home_team_name: string
+  away_team_id: string | null
+  away_team_name: string
+  result?: string
+  season: string
+  scraped_at?: string
+}
+
+export interface ATPatternRecord {
+  enabled_count: number
+  activated_count: number
+  total_matches: number
+  most_common_setting?: string
+}
+
+export interface OpponentPlayer {
+  id: string
+  name: string
+  position: string
+  age: number
+  quality: string
+  skills: Record<string, number>
+  source: "db" | "est" | "est_low"
+}
+
+export interface FormationHistoryEntry {
+  match_id: string
+  formation: string | null
+  style: string | null
+}
+
+export interface FixtureAnalysis {
+  opponent_team_id: string
+  opponent_team_name: string
+  season: string
+  formation_history: FormationHistoryEntry[]
+  predicted_formation: string | null
+  predicted_style: string | null
+  at_patterns: Record<string, ATPatternRecord>
+  opponent_players: OpponentPlayer[]
+  team_archetype: "speed" | "strength"
+  analyzed_at: string
+}
