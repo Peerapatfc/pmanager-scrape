@@ -1,0 +1,64 @@
+name: Match Prep Analysis
+
+on:
+  workflow_dispatch:
+    inputs:
+      opponent_team_id:
+        description: 'Opponent team ID'
+        required: true
+        type: string
+      season:
+        description: 'Season number (e.g. 99)'
+        required: true
+        default: '99'
+        type: string
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: |
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: Create .env file
+        run: |
+          echo "PM_USERNAME=${{ secrets.PM_USERNAME }}" > .env
+          echo "PM_PASSWORD=${{ secrets.PM_PASSWORD }}" >> .env
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+          echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
+          echo "CURRENT_SEASON=${{ github.event.inputs.season }}" >> .env
+          chmod 600 .env
+
+      - name: Run match prep analysis
+        run: python main_match_prep.py "${{ github.event.inputs.opponent_team_id }}" "${{ github.event.inputs.season }}"
+
+      - name: Cleanup sensitive files
+        if: always()
+        run: rm -f .env
+
+      - name: Notify failure via Telegram
+        if: failure()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="⚠️ Workflow '${{ github.workflow }}' failed. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
