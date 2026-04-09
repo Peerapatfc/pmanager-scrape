@@ -5,6 +5,39 @@ import { Shield } from "lucide-react";
 import { skillTier } from "@/lib/skillTier";
 import type { SquadPlayer } from "./page";
 
+// ── Formation data (from PManager tactics/position.txt) ──────────────────────
+interface Formation {
+  name: string;
+  slots: string[]; // 11 position codes: GK, LB, CD, RB, LM, CM, RM, LF, CF, RF
+}
+
+const FORMATIONS: Formation[] = [
+  { name: "3-2-5 v1", slots: ["GK","CD","CD","CD","CM","CM","LF","CF","CF","CF","RF"] },
+  { name: "3-2-5 v2", slots: ["GK","LB","CD","RB","CM","CM","LF","CF","CF","CF","RF"] },
+  { name: "3-3-4 v1", slots: ["GK","CD","CD","CD","CM","CM","CM","LF","CF","CF","RF"] },
+  { name: "3-3-4 v2", slots: ["GK","LB","CD","RB","CM","CM","CM","LF","CF","CF","RF"] },
+  { name: "3-3-4 v3", slots: ["GK","LB","CD","RB","LM","CM","RM","LF","CF","CF","RF"] },
+  { name: "3-3-4 v4", slots: ["GK","CD","CD","CD","LM","CM","RM","LF","CF","CF","RF"] },
+  { name: "3-4-3 v1", slots: ["GK","CD","CD","CD","LM","CM","CM","RM","CF","CF","CF"] },
+  { name: "3-4-3 v2", slots: ["GK","LB","CD","RB","LM","CM","CM","RM","CF","CF","CF"] },
+  { name: "3-4-3 v3", slots: ["GK","LB","CD","RB","LM","CM","CM","RM","LF","CF","RF"] },
+  { name: "3-4-3 v4", slots: ["GK","CD","CD","CD","LM","CM","CM","RM","LF","CF","RF"] },
+  { name: "3-5-2 v1", slots: ["GK","CD","CD","CD","LM","CM","CM","CM","RM","CF","CF"] },
+  { name: "3-5-2 v2", slots: ["GK","LB","CD","RB","LM","CM","CM","CM","RM","CF","CF"] },
+  { name: "4-2-4",    slots: ["GK","LB","CD","CD","RB","CM","CM","LF","CF","CF","RF"] },
+  { name: "4-3-3 v1", slots: ["GK","LB","CD","CD","RB","CM","CM","CM","CF","CF","CF"] },
+  { name: "4-3-3 v2", slots: ["GK","LB","CD","CD","RB","LM","CM","RM","CF","CF","CF"] },
+  { name: "4-3-3 v3", slots: ["GK","LB","CD","CD","RB","LM","CM","RM","LF","CF","RF"] },
+  { name: "4-3-3 v4", slots: ["GK","LB","CD","CD","RB","CM","CM","CM","LF","CF","RF"] },
+  { name: "4-4-2",    slots: ["GK","LB","CD","CD","RB","LM","CM","CM","RM","CF","CF"] },
+  { name: "4-5-1",    slots: ["GK","LB","CD","CD","RB","LM","CM","CM","CM","RM","CF"] },
+  { name: "5-2-3 v1", slots: ["GK","LB","CD","CD","CD","RB","CM","CM","CF","CF","CF"] },
+  { name: "5-2-3 v2", slots: ["GK","LB","CD","CD","CD","RB","CM","CM","LF","CF","RF"] },
+  { name: "5-3-2 v1", slots: ["GK","LB","CD","CD","CD","RB","CM","CM","CM","CF","CF"] },
+  { name: "5-3-2 v2", slots: ["GK","LB","CD","CD","CD","RB","LM","CM","RM","CF","CF"] },
+  { name: "5-4-1",    slots: ["GK","LB","CD","CD","CD","RB","LM","CM","CM","RM","CF"] },
+];
+
 // ── Skill display order (abbreviation → DB field name) ──────────────────────
 const SKILLS: { abbr: string; field: string }[] = [
   { abbr: "Han", field: "Handling" },
@@ -32,6 +65,14 @@ function posGroup(position: string): PosGroup {
   return "F";
 }
 
+// Map tactic slot position code to player position group
+function tacticToGroup(tacPos: string): PosGroup {
+  if (tacPos === "GK") return "GK";
+  if (["LB", "CD", "RB"].includes(tacPos)) return "D";
+  if (["LM", "CM", "RM"].includes(tacPos)) return "M";
+  return "F"; // LF, CF, RF
+}
+
 const POS_ORDER: PosGroup[] = ["GK", "D", "M", "F"];
 const POS_LABEL: Record<PosGroup, string> = {
   GK: "Goalkeepers",
@@ -40,13 +81,13 @@ const POS_LABEL: Record<PosGroup, string> = {
   F: "Forwards",
 };
 const POS_COLORS: Record<PosGroup, { badge: string; border: string; text: string }> = {
-  GK: { badge: "bg-yellow-500/20 text-yellow-400",  border: "border-yellow-500/30", text: "text-yellow-400" },
-  D:  { badge: "bg-blue-500/20 text-blue-400",      border: "border-blue-500/30",   text: "text-blue-400"   },
+  GK: { badge: "bg-yellow-500/20 text-yellow-400",   border: "border-yellow-500/30",  text: "text-yellow-400"  },
+  D:  { badge: "bg-blue-500/20 text-blue-400",       border: "border-blue-500/30",    text: "text-blue-400"    },
   M:  { badge: "bg-emerald-500/20 text-emerald-400", border: "border-emerald-500/30", text: "text-emerald-400" },
-  F:  { badge: "bg-red-500/20 text-red-400",        border: "border-red-500/30",    text: "text-red-400"    },
+  F:  { badge: "bg-red-500/20 text-red-400",         border: "border-red-500/30",     text: "text-red-400"     },
 };
 
-// ── Skill helper ─────────────────────────────────────────────────────────────
+// ── Skill helpers ─────────────────────────────────────────────────────────────
 function sk(player: SquadPlayer, field: string): number {
   return player.skills?.[field] ?? 0;
 }
@@ -59,97 +100,70 @@ function avg(values: number[]): number {
 // ── Tactical rating definitions ───────────────────────────────────────────────
 interface TacticalMetric {
   label: string;
-  compute: (players: SquadPlayer[], all: SquadPlayer[]) => number | null;
+  compute: (players: SquadPlayer[]) => number | null;
 }
 
 const TACTICAL_METRICS: TacticalMetric[] = [
-  {
-    label: "Speed",
-    compute: (_, all) => avg(all.map((p) => sk(p, "Speed"))),
-  },
-  {
-    label: "Strength",
-    compute: (_, all) => avg(all.map((p) => sk(p, "Strength"))),
-  },
+  { label: "Speed",           compute: (all) => avg(all.map((p) => sk(p, "Speed"))) },
+  { label: "Strength",        compute: (all) => avg(all.map((p) => sk(p, "Strength"))) },
   {
     label: "Offside Trap",
-    compute: (_, all) => {
+    compute: (all) => {
       const defs = all.filter((p) => posGroup(p.position) === "D");
-      if (!defs.length) return null;
-      return avg(defs.map((p) => (sk(p, "Positioning") + sk(p, "Speed")) / 2));
+      return defs.length ? avg(defs.map((p) => (sk(p, "Positioning") + sk(p, "Speed")) / 2)) : null;
     },
   },
-  {
-    label: "Pressing – High",
-    compute: (_, all) => avg(all.map((p) => (sk(p, "Speed") + sk(p, "Passing")) / 2)),
-  },
-  {
-    label: "Pressing – Low",
-    compute: (_, all) =>
-      avg(all.map((p) => (sk(p, "Tackling") + (20 - sk(p, "Speed"))) / 2)),
-  },
-  {
-    label: "Counter Attack",
-    compute: (_, all) => avg(all.map((p) => (sk(p, "Speed") + sk(p, "Passing")) / 2)),
-  },
-  {
-    label: "High Balls",
-    compute: (_, all) => avg(all.map((p) => (sk(p, "Heading") + sk(p, "Strength")) / 2)),
-  },
+  { label: "Pressing – High",   compute: (all) => avg(all.map((p) => (sk(p, "Speed") + sk(p, "Passing")) / 2)) },
+  { label: "Pressing – Low",    compute: (all) => avg(all.map((p) => (sk(p, "Tackling") + (20 - sk(p, "Speed"))) / 2)) },
+  { label: "Counter Attack",    compute: (all) => avg(all.map((p) => (sk(p, "Speed") + sk(p, "Passing")) / 2)) },
+  { label: "High Balls",        compute: (all) => avg(all.map((p) => (sk(p, "Heading") + sk(p, "Strength")) / 2)) },
   {
     label: "One on Ones",
-    compute: (_, all) => {
+    compute: (all) => {
       const mf = all.filter((p) => ["M", "F"].includes(posGroup(p.position)));
-      if (!mf.length) return null;
-      return avg(mf.map((p) => (sk(p, "Technique") + sk(p, "Strength")) / 2));
+      return mf.length ? avg(mf.map((p) => (sk(p, "Technique") + sk(p, "Strength")) / 2)) : null;
     },
   },
   {
     label: "Keeping – Stand In",
-    compute: (_, all) => {
+    compute: (all) => {
       const gks = all.filter((p) => posGroup(p.position) === "GK");
-      if (!gks.length) return null;
-      return avg(gks.map((p) => (sk(p, "Reflexes") + sk(p, "Handling")) / 2));
+      return gks.length ? avg(gks.map((p) => (sk(p, "Reflexes") + sk(p, "Handling")) / 2)) : null;
     },
   },
   {
     label: "Keeping – Rush Out",
-    compute: (_, all) => {
+    compute: (all) => {
       const gks = all.filter((p) => posGroup(p.position) === "GK");
-      if (!gks.length) return null;
-      return avg(gks.map((p) => (sk(p, "Agility") + sk(p, "Out of Area")) / 2));
+      return gks.length ? avg(gks.map((p) => (sk(p, "Agility") + sk(p, "Out of Area")) / 2)) : null;
     },
   },
   {
     label: "Marking – Zonal",
-    compute: (_, all) => {
+    compute: (all) => {
       const dm = all.filter((p) => ["D", "M"].includes(posGroup(p.position)));
-      if (!dm.length) return null;
-      return avg(dm.map((p) => (sk(p, "Speed") + sk(p, "Tackling")) / 2));
+      return dm.length ? avg(dm.map((p) => (sk(p, "Speed") + sk(p, "Tackling")) / 2)) : null;
     },
   },
   {
     label: "Marking – Man to Man",
-    compute: (_, all) => {
+    compute: (all) => {
       const dm = all.filter((p) => ["D", "M"].includes(posGroup(p.position)));
-      if (!dm.length) return null;
-      return avg(dm.map((p) => (sk(p, "Strength") + sk(p, "Tackling")) / 2));
+      return dm.length ? avg(dm.map((p) => (sk(p, "Strength") + sk(p, "Tackling")) / 2)) : null;
     },
   },
   {
     label: "Long Shots",
-    compute: (_, all) => {
+    compute: (all) => {
       const mf = all.filter((p) => ["M", "F"].includes(posGroup(p.position)));
-      if (!mf.length) return null;
-      return avg(mf.map((p) => (sk(p, "Finishing") + sk(p, "Technique")) / 2));
+      return mf.length ? avg(mf.map((p) => (sk(p, "Finishing") + sk(p, "Technique")) / 2)) : null;
     },
   },
   {
     label: "First Time Shots",
-    compute: (_, all) => {
+    compute: (all) => {
       const fwds = all.filter((p) => posGroup(p.position) === "F");
-      if (fwds.length < 3) return null; // requires at least 3 forwards
-      return avg(fwds.map((p) => (sk(p, "Finishing") + sk(p, "Heading")) / 2));
+      return fwds.length >= 3 ? avg(fwds.map((p) => (sk(p, "Finishing") + sk(p, "Heading")) / 2)) : null;
     },
   },
 ];
@@ -169,22 +183,14 @@ function SkillChip({ value }: { value: number }) {
   );
 }
 
-function SkillBar({ value, label }: { value: number; label?: string }) {
+function SkillBar({ value }: { value: number }) {
   const tier = skillTier(value);
   const pct = Math.round((value / 20) * 100);
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-2 rounded bg-neutral-700 overflow-hidden">
-        <div
-          className="h-full rounded transition-all"
-          style={{ width: `${pct}%`, backgroundColor: tier.bg }}
-        />
+        <div className="h-full rounded transition-all" style={{ width: `${pct}%`, backgroundColor: tier.bg }} />
       </div>
-      {label !== undefined && (
-        <span className="text-[11px] font-semibold w-24 shrink-0" style={{ color: tier.color }}>
-          {tier.label}
-        </span>
-      )}
       <span className="text-[11px] font-bold text-neutral-400 w-5 text-right shrink-0">
         {value.toFixed(1).replace(".0", "")}
       </span>
@@ -196,15 +202,11 @@ function SkillBar({ value, label }: { value: number; label?: string }) {
 
 function OverviewCard({ group, players }: { group: PosGroup; players: SquadPlayer[] }) {
   const colors = POS_COLORS[group];
-
-  // Compute average per skill, pick top 5 by avg value
   const skillAvgs = SKILLS.map(({ abbr, field }) => ({
     abbr,
     field,
     avg: players.length ? avg(players.map((p) => sk(p, field))) : 0,
   })).sort((a, b) => b.avg - a.avg);
-
-  const topSkills = skillAvgs.slice(0, 5);
 
   return (
     <div className={`bg-neutral-900 border ${colors.border} rounded-xl p-4`}>
@@ -217,7 +219,7 @@ function OverviewCard({ group, players }: { group: PosGroup; players: SquadPlaye
         <p className="text-xs text-neutral-600">No players</p>
       ) : (
         <div className="space-y-2">
-          {topSkills.map(({ abbr, field, avg: val }) => (
+          {skillAvgs.slice(0, 5).map(({ abbr, field, avg: val }) => (
             <div key={field} className="flex items-center gap-2">
               <span className="text-[10px] text-neutral-500 w-7 shrink-0">{abbr}</span>
               <SkillBar value={Math.round(val * 10) / 10} />
@@ -229,23 +231,179 @@ function OverviewCard({ group, players }: { group: PosGroup; players: SquadPlaye
   );
 }
 
+// ── Lineup builder ────────────────────────────────────────────────────────────
+
+function LineupBuilder({
+  formationIdx,
+  onFormationChange,
+  lineup,
+  onLineupChange,
+  players,
+}: {
+  formationIdx: number;
+  onFormationChange: (idx: number) => void;
+  lineup: (string | null)[];
+  onLineupChange: (lineup: (string | null)[]) => void;
+  players: SquadPlayer[];
+}) {
+  const formation = FORMATIONS[formationIdx];
+
+  // Group slots into rows by position group (GK → D → M → F)
+  const rows = useMemo(() => {
+    const groups: Record<PosGroup, Array<{ index: number; tacPos: string }>> = {
+      GK: [], D: [], M: [], F: [],
+    };
+    formation.slots.forEach((tacPos, index) => {
+      groups[tacticToGroup(tacPos)].push({ index, tacPos });
+    });
+    return POS_ORDER.map((g) => groups[g]).filter((g) => g.length > 0);
+  }, [formation]);
+
+  // Players by position group for filtered dropdowns
+  const playersByGroup = useMemo(() => {
+    const map: Record<PosGroup, SquadPlayer[]> = { GK: [], D: [], M: [], F: [] };
+    players.forEach((p) => map[posGroup(p.position)].push(p));
+    return map;
+  }, [players]);
+
+  const assignedIds = useMemo(
+    () => new Set(lineup.filter((id): id is string => id !== null)),
+    [lineup]
+  );
+
+  function handleSlotChange(slotIdx: number, playerId: string | null) {
+    const next = [...lineup];
+    next[slotIdx] = playerId;
+    onLineupChange(next);
+  }
+
+  function handleFormationChange(idx: number) {
+    onFormationChange(idx);
+    onLineupChange(Array(11).fill(null));
+  }
+
+  const filledCount = assignedIds.size;
+  const isComplete = filledCount === 11;
+
+  return (
+    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h2 className="text-sm font-bold text-neutral-300 uppercase tracking-widest">
+          Starting Lineup
+        </h2>
+        <div className="flex items-center gap-3">
+          <select
+            value={formationIdx}
+            onChange={(e) => handleFormationChange(Number(e.target.value))}
+            className="bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs px-3 py-1.5 rounded-lg focus:outline-none focus:border-indigo-500"
+          >
+            {FORMATIONS.map((f, i) => (
+              <option key={i} value={i}>{f.name}</option>
+            ))}
+          </select>
+          {filledCount > 0 && (
+            <button
+              onClick={() => onLineupChange(Array(11).fill(null))}
+              className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Slot rows (F → M → D → GK displayed top-to-bottom like a pitch) */}
+      <div className="space-y-3">
+        {[...rows].reverse().map((row, rowIdx) => {
+          const group = tacticToGroup(row[0].tacPos);
+          const colors = POS_COLORS[group];
+          return (
+            <div key={rowIdx} className="flex justify-center gap-2 flex-wrap">
+              {row.map(({ index, tacPos }) => {
+                const compatible = playersByGroup[tacticToGroup(tacPos)];
+                const currentId = lineup[index];
+                const currentPlayer = currentId
+                  ? players.find((p) => p.player_id === currentId)
+                  : null;
+                return (
+                  <div key={index} className="flex flex-col items-center gap-1 min-w-[110px]">
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${colors.badge}`}>
+                      {tacPos}
+                    </span>
+                    <select
+                      value={currentId ?? ""}
+                      onChange={(e) => handleSlotChange(index, e.target.value || null)}
+                      className={`bg-neutral-800 border text-[10px] px-2 py-1 rounded-lg focus:outline-none w-[110px] truncate ${
+                        currentId
+                          ? "border-indigo-500/50 text-neutral-100"
+                          : "border-neutral-700 text-neutral-400"
+                      }`}
+                    >
+                      <option value="">— Pick —</option>
+                      {compatible.map((p) => {
+                        const isAssignedElsewhere =
+                          assignedIds.has(p.player_id) && p.player_id !== currentId;
+                        return (
+                          <option
+                            key={p.player_id}
+                            value={p.player_id}
+                            disabled={isAssignedElsewhere}
+                          >
+                            {isAssignedElsewhere ? `✓ ${p.name}` : p.name}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {currentPlayer && (
+                      <span className="text-[9px] text-neutral-500 truncate max-w-[110px]">
+                        {currentPlayer.position}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Status */}
+      <div className="mt-4 flex items-center justify-between">
+        {isComplete ? (
+          <span className="text-xs text-emerald-400 font-semibold">✓ Starting 11 selected — Advanced Tactics uses these players</span>
+        ) : (
+          <span className="text-xs text-neutral-600">{filledCount} / 11 selected · Advanced Tactics uses full squad until all 11 are chosen</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Tactical ratings panel ───────────────────────────────────────────────────
 
-function TacticalPanel({ players }: { players: SquadPlayer[] }) {
+function TacticalPanel({ players, fromLineup }: { players: SquadPlayer[]; fromLineup: boolean }) {
   const metrics = useMemo(
-    () =>
-      TACTICAL_METRICS.map((m) => ({
-        label: m.label,
-        value: m.compute(players, players),
-      })),
+    () => TACTICAL_METRICS.map((m) => ({ label: m.label, value: m.compute(players) })),
     [players]
   );
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-      <h2 className="text-sm font-bold text-neutral-300 uppercase tracking-widest mb-4">
-        Advanced Tactics Ratings
-      </h2>
+      <div className="flex items-center gap-3 mb-4">
+        <h2 className="text-sm font-bold text-neutral-300 uppercase tracking-widest">
+          Advanced Tactics Ratings
+        </h2>
+        {fromLineup ? (
+          <span className="text-[10px] bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded-full">
+            Starting XI
+          </span>
+        ) : (
+          <span className="text-[10px] bg-neutral-800 text-neutral-500 border border-neutral-700 px-2 py-0.5 rounded-full">
+            Full Squad
+          </span>
+        )}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
         {metrics.map(({ label, value }) => (
           <div key={label} className="flex items-center gap-3">
@@ -253,15 +411,15 @@ function TacticalPanel({ players }: { players: SquadPlayer[] }) {
             {value === null ? (
               <span className="text-xs text-neutral-600 italic">N/A</span>
             ) : (
-              <SkillBar value={Math.round(value * 10) / 10} label="" />
-            )}
-            {value !== null && (
-              <span
-                className="text-[10px] font-semibold w-20 shrink-0"
-                style={{ color: skillTier(Math.round(value)).color }}
-              >
-                {skillTier(Math.round(value)).label}
-              </span>
+              <>
+                <SkillBar value={Math.round(value * 10) / 10} />
+                <span
+                  className="text-[10px] font-semibold w-20 shrink-0"
+                  style={{ color: skillTier(Math.round(value)).color }}
+                >
+                  {skillTier(Math.round(value)).label}
+                </span>
+              </>
             )}
           </div>
         ))}
@@ -276,6 +434,21 @@ type FilterTab = "All" | PosGroup;
 
 export default function SquadClient({ players }: { players: SquadPlayer[] }) {
   const [activeTab, setActiveTab] = useState<FilterTab>("All");
+  const [formationIdx, setFormationIdx] = useState(17); // default: 4-4-2
+  const [lineup, setLineup] = useState<(string | null)[]>(Array(11).fill(null));
+
+  // Resolve starting eleven from lineup assignments
+  const startingEleven = useMemo(() => {
+    const result: SquadPlayer[] = [];
+    lineup.forEach((id) => {
+      if (!id) return;
+      const p = players.find((pl) => pl.player_id === id);
+      if (p) result.push(p);
+    });
+    return result;
+  }, [lineup, players]);
+
+  const isLineupComplete = startingEleven.length === 11;
 
   // Group all players by position for overview
   const grouped = useMemo(() => {
@@ -323,21 +496,26 @@ export default function SquadClient({ players }: { players: SquadPlayer[] }) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-3xl font-bold bg-linear-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent mb-1">
-            Squad Analysis
-          </h1>
-          <p className="text-neutral-400 text-sm">
-            {players.length} players
-            {syncedAt && (
-              <span className="text-neutral-600 ml-2">· Last synced {syncedAt}</span>
-            )}
-          </p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold bg-linear-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent mb-1">
+          Squad Analysis
+        </h1>
+        <p className="text-neutral-400 text-sm">
+          {players.length} players
+          {syncedAt && <span className="text-neutral-600 ml-2">· Last synced {syncedAt}</span>}
+        </p>
       </div>
 
-      {/* Team Overview */}
+      {/* Lineup Builder */}
+      <LineupBuilder
+        formationIdx={formationIdx}
+        onFormationChange={setFormationIdx}
+        lineup={lineup}
+        onLineupChange={setLineup}
+        players={players}
+      />
+
+      {/* Team Overview — always full squad */}
       <section>
         <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-500 mb-3">
           Team Overview — Average by Position
@@ -349,8 +527,11 @@ export default function SquadClient({ players }: { players: SquadPlayer[] }) {
         </div>
       </section>
 
-      {/* Tactical Ratings */}
-      <TacticalPanel players={players} />
+      {/* Tactical Ratings — starting XI if complete, else full squad */}
+      <TacticalPanel
+        players={isLineupComplete ? startingEleven : players}
+        fromLineup={isLineupComplete}
+      />
 
       {/* Individual Players */}
       <section>
@@ -376,7 +557,6 @@ export default function SquadClient({ players }: { players: SquadPlayer[] }) {
         </div>
 
         <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
-          {/* Table header */}
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
@@ -397,9 +577,9 @@ export default function SquadClient({ players }: { players: SquadPlayer[] }) {
                 {filtered.map((player, idx) => {
                   const group = posGroup(player.position);
                   const colors = POS_COLORS[group];
-                  // Show a group header row when the group changes
                   const prevGroup = idx > 0 ? posGroup(filtered[idx - 1].position) : null;
-                  const showGroupHeader = (activeTab === "All") && (prevGroup !== group);
+                  const showGroupHeader = activeTab === "All" && prevGroup !== group;
+                  const isStarter = isLineupComplete && startingEleven.some((p) => p.player_id === player.player_id);
 
                   return [
                     showGroupHeader && (
@@ -413,7 +593,11 @@ export default function SquadClient({ players }: { players: SquadPlayer[] }) {
                     ),
                     <tr
                       key={player.player_id}
-                      className="border-t border-neutral-800/60 hover:bg-neutral-800/30 transition-colors"
+                      className={`border-t border-neutral-800/60 transition-colors ${
+                        isStarter
+                          ? "bg-indigo-900/10 hover:bg-indigo-900/20"
+                          : "hover:bg-neutral-800/30"
+                      }`}
                     >
                       <td className="px-3 py-1.5">
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${colors.badge}`}>
@@ -421,15 +605,16 @@ export default function SquadClient({ players }: { players: SquadPlayer[] }) {
                         </span>
                       </td>
                       <td className="px-3 py-1.5 font-medium text-neutral-200 truncate max-w-[140px]">
-                        {player.name}
+                        <span className="flex items-center gap-1.5">
+                          {isStarter && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                          )}
+                          {player.name}
+                        </span>
                       </td>
                       <td className="px-2 py-1.5 text-center text-neutral-400">{player.age ?? "—"}</td>
-                      <td className="px-2 py-1.5 text-center text-neutral-300 text-[10px]">
-                        {player.quality ?? "—"}
-                      </td>
-                      <td className="px-2 py-1.5 text-center text-neutral-300 text-[10px]">
-                        {player.potential ?? "—"}
-                      </td>
+                      <td className="px-2 py-1.5 text-center text-neutral-300 text-[10px]">{player.quality ?? "—"}</td>
+                      <td className="px-2 py-1.5 text-center text-neutral-300 text-[10px]">{player.potential ?? "—"}</td>
                       {SKILLS.map(({ field }) => (
                         <td key={field} className="px-1 py-1">
                           <SkillChip value={sk(player, field)} />

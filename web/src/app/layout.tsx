@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import Link from 'next/link';
-import { LayoutDashboard, Users, ArrowRightLeft, Bot, Swords } from 'lucide-react';
+import { LayoutDashboard, Users, ArrowRightLeft, Bot, Swords, Shield } from 'lucide-react';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -47,6 +47,10 @@ export default function RootLayout({
               <Swords size={20} />
               <span>Opponent Scout</span>
             </Link>
+            <Link href="/squad" className="flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-indigo-400 hover:text-indigo-300 hover:bg-indigo-900/20">
+              <Shield size={20} />
+              <span>My Squad</span>
+            </Link>
           </nav>
         </aside>
 
@@ -63,6 +67,7 @@ export default function RootLayout({
               <Link href="/transfers" className="text-neutral-400 hover:text-white"><ArrowRightLeft size={20} /></Link>
               <Link href="/bot-opportunities" className="text-purple-400 hover:text-purple-300"><Bot size={20} /></Link>
               <Link href="/opponent-scout" className="text-orange-400 hover:text-orange-300"><Swords size={20} /></Link>
+              <Link href="/squad" className="text-indigo-400 hover:text-indigo-300"><Shield size={20} /></Link>
             </nav>
           </header>
 
