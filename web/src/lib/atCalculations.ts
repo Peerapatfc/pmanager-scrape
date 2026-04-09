@@ -1,6 +1,8 @@
 // web/src/lib/atCalculations.ts
 // AT matchup calculations per PManager manual §13.
 
+import type { ATPatternRecord } from "@/types"
+
 export type ATResult = "win" | "lose" | "partial" | "na"
 
 export interface ConditionResult {
