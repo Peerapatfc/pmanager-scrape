@@ -408,9 +408,7 @@ function AnalysisPanel({
             <div className="flex items-center justify-between mb-2">
               <div className="text-[10px] uppercase tracking-wider text-neutral-500">
                 Opponent Squad
-                {lineupPlayers.length > 0 && ` (${lineupPlayers.length} in lineup`}
-                {hiddenPlayers.length > 0 && ` · ${hiddenPlayers.length} squad`}
-                {lineupPlayers.length > 0 && ")"}
+                {lineupPlayers.length > 0 && ` (${lineupPlayers.length} in lineup${hiddenPlayers.length > 0 ? ` + ${hiddenPlayers.length} bench` : ""})`}
               </div>
               {oppId && (
                 <button
