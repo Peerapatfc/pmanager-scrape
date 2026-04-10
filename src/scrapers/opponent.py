@@ -71,6 +71,18 @@ class OpponentScraper(BaseScraper):
         rows = roster_soup.find_all("tr", class_=["list1", "list2"])
         logger.info("Found %d rows in squad table.", len(rows))
 
+        # Fallback: some team pages use different row classes. Walk up from
+        # each player link to its parent <tr> instead.
+        if not rows:
+            logger.info("No list1/list2 rows found — falling back to link-based detection.")
+            all_links = roster_soup.find_all("a", href=re.compile(r"ver_jogador\.asp\?jog_id=\d+"))
+            rows = []
+            for lnk in all_links:
+                parent_tr = lnk.find_parent("tr")
+                if parent_tr and parent_tr not in rows:
+                    rows.append(parent_tr)
+            logger.info("Fallback found %d rows via player links.", len(rows))
+
         for row in rows:
             link = row.find("a", href=re.compile(r"ver_jogador\.asp\?jog_id=\d+"))
             if not link:

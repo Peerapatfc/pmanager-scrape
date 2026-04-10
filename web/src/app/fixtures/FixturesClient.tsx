@@ -498,9 +498,14 @@ export default function FixturesClient({ fixtures, analysisMap, myPlayers, seaso
 
   // Derive opponent team id: the team that isn't ours
   function getOpponentId(fixture: UpcomingFixture): string | null {
-    if (fixture.home_team_name === myTeamName) return fixture.away_team_id ?? null
-    if (fixture.away_team_name === myTeamName) return fixture.home_team_id ?? null
-    // fallback when myTeamName unavailable
+    // Normalise names: trim + collapse non-breaking spaces for robust comparison
+    const norm = (s: string | null | undefined) =>
+      (s ?? "").trim().replace(/\u00a0/g, " ").toLowerCase()
+    const myName = norm(myTeamName)
+    if (myName && norm(fixture.home_team_name) === myName) return fixture.away_team_id ?? null
+    if (myName && norm(fixture.away_team_name) === myName) return fixture.home_team_id ?? null
+    // Fallback when myTeamName unavailable — prefer away, but never return null
+    // if one side has data.
     return fixture.away_team_id ?? fixture.home_team_id ?? null
   }
 

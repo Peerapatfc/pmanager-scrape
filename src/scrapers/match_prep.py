@@ -95,9 +95,10 @@ class MatchPrepScraper(BaseScraper):
                     match_id = m.group(1) if m else None
                     break
 
-            # Team IDs from name links
-            home_link = home_cell.find("a")
-            away_link = away_cell.find("a")
+            # Team IDs from name links — use ver_equipa.asp links specifically
+            # to avoid matching equipa= parameters on match/calendar links.
+            home_link = home_cell.find("a", href=re.compile(r"ver_equipa\.asp\?equipa="))
+            away_link = away_cell.find("a", href=re.compile(r"ver_equipa\.asp\?equipa="))
             home_id = re.search(r"equipa=(\d+)", home_link["href"]).group(1) if home_link else None
             away_id = re.search(r"equipa=(\d+)", away_link["href"]).group(1) if away_link else None
 
