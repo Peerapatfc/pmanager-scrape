@@ -374,15 +374,17 @@ class MatchPrepScraper(BaseScraper):
         # Completed = has a numeric match_id (match report link present), not our fallback
         completed = [f for f in opp_fixtures if str(f.get("match_id", "")).isdigit()]
 
-        # Pre-season: no completed matches yet — fall back to previous season
-        if not completed:
+        # Top up from previous season if fewer than 10 completed matches available
+        if len(completed) < 10:
             prev_season = str(int(season) - 1)
             logger.info(
-                "No completed fixtures in season %s — trying previous season %s",
-                season, prev_season,
+                "Only %d completed fixture(s) in season %s — fetching previous season %s to fill up to 10",
+                len(completed), season, prev_season,
             )
             prev_fixtures = self.scrape_opponent_fixtures(opponent_team_id, prev_season)
-            completed = [f for f in prev_fixtures if str(f.get("match_id", "")).isdigit()]
+            prev_completed = [f for f in prev_fixtures if str(f.get("match_id", "")).isdigit()]
+            # Prepend previous season matches (older first), then current season on top
+            completed = prev_completed + completed
             if not opponent_team_name:
                 for f in prev_fixtures:
                     is_home_f = f.get("home_team_id") == opponent_team_id
