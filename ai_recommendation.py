@@ -67,7 +67,15 @@ def _filter_candidates(
                 continue
 
             deadline_str = str(p.get("deadline", ""))
-            deadline_dt = parse_deadline(deadline_str)
+            deadline_dt = None
+            if deadline_str and deadline_str not in ("None", "N/A"):
+                try:
+                    # DB stores deadlines as ISO strings (e.g. "2026-04-10T09:25:00+00:00").
+                    # Strip timezone info and treat as naive Bangkok time — consistent with
+                    # how parse_deadline() and now_th are both computed in UTC+7.
+                    deadline_dt = datetime.fromisoformat(deadline_str).replace(tzinfo=None)
+                except ValueError:
+                    deadline_dt = parse_deadline(deadline_str)
 
             if not deadline_dt:
                 dropped["parse_error"] += 1
