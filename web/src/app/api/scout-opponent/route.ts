@@ -1,3 +1,4 @@
+// web/src/app/api/scout-opponent/route.ts
 import { NextRequest, NextResponse } from "next/server"
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN
@@ -13,7 +14,6 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}))
   const team_id: string = (body.team_id ?? "").trim()
-  const season: string  = (body.season ?? "99").trim()
 
   if (!team_id) {
     return NextResponse.json(
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     },
     body: JSON.stringify({
       ref:    "main",
-      inputs: { opponent_team_id: team_id, season },
+      inputs: { scout_target: team_id },
     }),
   })
 
