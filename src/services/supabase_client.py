@@ -182,12 +182,28 @@ class SupabaseManager:
     def get_all_players(self) -> list[dict[str, Any]]:
         """Fetch all player records from the ``players`` table.
 
+        Paginates in batches of 1000 to bypass PostgREST's default row limit.
+
         Returns:
             List of player row dicts, or an empty list on error.
         """
         try:
-            resp = self.client.table("players").select("*").execute()
-            return resp.data or []
+            all_rows: list[dict[str, Any]] = []
+            batch_size = 1000
+            offset = 0
+            while True:
+                resp = (
+                    self.client.table("players")
+                    .select("*")
+                    .range(offset, offset + batch_size - 1)
+                    .execute()
+                )
+                batch = resp.data or []
+                all_rows.extend(batch)
+                if len(batch) < batch_size:
+                    break
+                offset += batch_size
+            return all_rows
         except Exception as e:
             logger.error("Failed to fetch players: %s", e)
             return []
