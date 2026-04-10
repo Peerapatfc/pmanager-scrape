@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CalendarDays, ChevronRight, RefreshCw, Shield, Zap, Activity } from "lucide-react"
+import { CalendarDays, ChevronRight, RefreshCw, Search, Shield, Zap, Activity } from "lucide-react"
 import type { UpcomingFixture, FixtureAnalysis, ATPatternRecord } from "@/types"
 import {
   calculateATMatchups,
@@ -17,6 +17,7 @@ interface Props {
   myPlayers: PlayerWithPos[]
   season: string
   myTeamName: string
+  scoutingCoverage: Record<string, { scouted: number; total: number }>
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -63,6 +64,22 @@ function archetypeIcon(archetype: "speed" | "strength") {
   return archetype === "speed"
     ? <Zap size={14} className="text-yellow-400 inline" />
     : <Shield size={14} className="text-blue-400 inline" />
+}
+
+function sourceBadge(source: string) {
+  const styles: Record<string, string> = {
+    scout:   "bg-emerald-950 text-emerald-400 border border-emerald-900/50",
+    db:      "bg-emerald-500/20 text-emerald-400",
+    est:     "bg-yellow-500/20 text-yellow-400",
+    est_low: "bg-red-500/20 text-red-400",
+    hidden:  "bg-stone-900 text-stone-500",
+  }
+  const label = source === "est_low" ? "EST" : source.toUpperCase()
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${styles[source] ?? "bg-neutral-700 text-neutral-400"}`}>
+      {label}
+    </span>
+  )
 }
 
 // Build oppSettings object from AT patterns for calculateATMatchups
@@ -183,15 +200,21 @@ function AnalysisPanel({
   myPlayers,
   season,
   oppId,
+  scoutingCoverage,
 }: {
   fixture: UpcomingFixture
   analysis: FixtureAnalysis | null
   myPlayers: PlayerWithPos[]
   season: string
   oppId: string | null
+  scoutingCoverage: Record<string, { scouted: number; total: number }>
 }) {
   const [triggering, setTriggering] = useState(false)
   const [triggerMsg, setTriggerMsg] = useState<string | null>(null)
+  const [scouting, setScouting] = useState(false)
+  const [scoutMsg, setScoutMsg] = useState<string | null>(null)
+
+  const coverage = oppId ? scoutingCoverage[oppId] : undefined
 
   async function handleTrigger() {
     if (!oppId) return
@@ -212,11 +235,33 @@ function AnalysisPanel({
     }
   }
 
+  async function handleScout() {
+    if (!oppId) return
+    setScouting(true)
+    setScoutMsg(null)
+    try {
+      const res = await fetch("/api/scout-opponent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team_id: oppId }),
+      })
+      const data = await res.json()
+      setScoutMsg(data.message ?? data.error ?? "Unknown response")
+    } catch {
+      setScoutMsg("Request failed — check network.")
+    } finally {
+      setTimeout(() => setScouting(false), 10000)
+    }
+  }
+
   // AT matchups
+  const lineupPlayers = (analysis?.opponent_players ?? []).filter(p => p.source !== "hidden")
+  const hiddenPlayers = (analysis?.opponent_players ?? []).filter(p => p.source === "hidden")
+
   const matchups: ATMatchup[] = analysis
     ? calculateATMatchups(
         myPlayers,
-        (analysis.opponent_players ?? []).map(p => ({
+        lineupPlayers.map(p => ({
           position: p.position,
           skills: p.skills,
         })),
@@ -232,9 +277,16 @@ function AnalysisPanel({
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-white">
-            {fixture.home_team_name} <span className="text-neutral-500">vs</span> {fixture.away_team_name}
-          </h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-lg font-bold text-white">
+              {fixture.home_team_name} <span className="text-neutral-500">vs</span> {fixture.away_team_name}
+            </h2>
+            {coverage && coverage.scouted > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-900/50 text-[10px] font-medium">
+                ✓ {coverage.scouted}/{coverage.total} scouted
+              </span>
+            )}
+          </div>
           <div className="text-sm text-neutral-400 mt-0.5">
             {formatDate(fixture.match_date)} · {fixture.match_type}
             {fixture.result && (
@@ -351,11 +403,35 @@ function AnalysisPanel({
           )}
 
           {/* Opponent Squad */}
-          {analysis.opponent_players?.length > 0 && (
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-2">
-                Opponent Squad ({analysis.opponent_players.length} players)
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[10px] uppercase tracking-wider text-neutral-500">
+                Opponent Squad
+                {lineupPlayers.length > 0 && ` (${lineupPlayers.length} in lineup`}
+                {hiddenPlayers.length > 0 && ` · ${hiddenPlayers.length} squad`}
+                {lineupPlayers.length > 0 && ")"}
               </div>
+              {oppId && (
+                <button
+                  onClick={handleScout}
+                  disabled={scouting}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-950/60 border border-blue-900/50 text-blue-400 hover:bg-blue-900/40 transition-colors text-[10px] font-medium disabled:opacity-50"
+                >
+                  <Search size={10} />
+                  {scouting ? "Triggering…" : "Scout Opponent"}
+                </button>
+              )}
+            </div>
+            {scoutMsg && (
+              <div className="text-xs px-3 py-2 rounded-lg bg-neutral-800 text-neutral-300 border border-neutral-700 mb-2">
+                {scoutMsg}
+              </div>
+            )}
+            {lineupPlayers.length === 0 && hiddenPlayers.length === 0 ? (
+              <div className="text-xs text-neutral-600 text-center py-3 border border-neutral-800 rounded-lg">
+                No squad data — click Scout Opponent to fetch.
+              </div>
+            ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -368,30 +444,42 @@ function AnalysisPanel({
                     </tr>
                   </thead>
                   <tbody>
-                    {analysis.opponent_players.map((p) => (
+                    {lineupPlayers.map((p) => (
                       <tr key={p.id} className="border-b border-neutral-800/50 hover:bg-white/5">
                         <td className="py-1 pr-2 font-mono text-cyan-400">{p.position}</td>
                         <td className="py-1 pr-2 text-neutral-200 max-w-[140px] truncate">{p.name}</td>
                         <td className="py-1 pr-2 text-neutral-400">{p.age}</td>
                         <td className="py-1 pr-2 text-neutral-300">{p.quality}</td>
-                        <td className="py-1">
-                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                            p.source === "db"
-                              ? "bg-emerald-500/20 text-emerald-400"
-                              : p.source === "est"
-                              ? "bg-yellow-500/20 text-yellow-400"
-                              : "bg-red-500/20 text-red-400"
-                          }`}>
-                            {p.source.toUpperCase()}
-                          </span>
+                        <td className="py-1">{sourceBadge(p.source)}</td>
+                      </tr>
+                    ))}
+                    {hiddenPlayers.length > 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-2">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 border-t border-dashed border-neutral-700/50" />
+                            <span className="text-[10px] text-neutral-600 whitespace-nowrap">
+                              Squad · skills hidden ({hiddenPlayers.length})
+                            </span>
+                            <div className="flex-1 border-t border-dashed border-neutral-700/50" />
+                          </div>
                         </td>
+                      </tr>
+                    )}
+                    {hiddenPlayers.map((p) => (
+                      <tr key={p.id} className="border-b border-neutral-800/30">
+                        <td className="py-1 pr-2 font-mono text-neutral-500">{p.position}</td>
+                        <td className="py-1 pr-2 text-neutral-500 max-w-[140px] truncate">{p.name}</td>
+                        <td className="py-1 pr-2 text-neutral-600">{p.age || "—"}</td>
+                        <td className="py-1 pr-2 text-neutral-600">{p.quality || "—"}</td>
+                        <td className="py-1">{sourceBadge(p.source)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="text-[10px] text-neutral-600 text-right">
             Analyzed: {new Date(analysis.analyzed_at).toLocaleDateString("en-GB", { timeZone: "Asia/Bangkok" })}
@@ -404,7 +492,7 @@ function AnalysisPanel({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function FixturesClient({ fixtures, analysisMap, myPlayers, season, myTeamName }: Props) {
+export default function FixturesClient({ fixtures, analysisMap, myPlayers, season, myTeamName, scoutingCoverage }: Props) {
   const [selected, setSelected] = useState<UpcomingFixture | null>(
     fixtures.length > 0 ? fixtures[0] : null
   )
@@ -484,6 +572,7 @@ export default function FixturesClient({ fixtures, analysisMap, myPlayers, seaso
                 myPlayers={myPlayers}
                 season={season}
                 oppId={selectedOppId}
+                scoutingCoverage={scoutingCoverage}
               />
             ) : (
               <div className="text-center py-12 text-neutral-500">
