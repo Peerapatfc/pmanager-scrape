@@ -112,7 +112,7 @@ export interface OpponentPlayer {
   age: number
   quality: string
   skills: Record<string, number>
-  source: "db" | "est" | "est_low"
+  source: "db" | "est" | "est_low" | "scout" | "hidden"
 }
 
 export interface FormationHistoryEntry {
