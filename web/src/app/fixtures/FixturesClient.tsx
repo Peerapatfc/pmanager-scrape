@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CalendarDays, ChevronRight, RefreshCw, Search, Shield, Zap, Activity } from "lucide-react"
+import { CalendarDays, Check, ChevronRight, RefreshCw, Search, Shield, Zap, Activity } from "lucide-react"
 import type { UpcomingFixture, FixtureAnalysis, ATPatternRecord } from "@/types"
 import {
   calculateATMatchups,
@@ -282,8 +282,9 @@ function AnalysisPanel({
               {fixture.home_team_name} <span className="text-neutral-500">vs</span> {fixture.away_team_name}
             </h2>
             {coverage && coverage.scouted > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-900/50 text-[10px] font-medium">
-                ✓ {coverage.scouted}/{coverage.total} scouted
+              <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-900/50 text-[10px] font-medium">
+                <Check size={9} />
+                {coverage.scouted}/{coverage.total} scouted
               </span>
             )}
           </div>

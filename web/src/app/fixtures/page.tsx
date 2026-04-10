@@ -87,6 +87,7 @@ async function getScoutedPlayerSkills(
     .from("opponent_scout_results")
     .select("player_id, team_id, player_name, position")
     .in("team_id", teamIds)
+    .limit(2000)
   if (scoutError) {
     console.error("Failed to fetch opponent_scout_results:", scoutError.message)
     return new Map()
@@ -98,6 +99,7 @@ async function getScoutedPlayerSkills(
     .from("players")
     .select("id, age, quality, skills")
     .in("id", playerIds)
+    .limit(2000)
   if (playerError) {
     console.error("Failed to fetch players for scout enrichment:", playerError.message)
     return new Map()
