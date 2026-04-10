@@ -82,41 +82,40 @@ def main() -> None:
         scraper.start(headless=config.HEADLESS_MODE)
         scraper.login(config.PM_USERNAME, config.PM_PASSWORD)
 
-        team_name, opponent_ids = scraper.get_team_players(team_url)
+        team_name, opponent_players = scraper.get_team_players(team_url)
 
-        if not opponent_ids:
+        if not opponent_players:
             logger.warning("No players found on this team page.")
             return
 
-        matches = {str(pid) for pid in opponent_ids if str(pid) in existing_ids}
+        opponent_ids = {p["player_id"] for p in opponent_players}
+        matches = opponent_ids & existing_ids
 
         logger.info("=" * 50)
         logger.info(
             "SCOUT REPORT — %s (team_id=%s) — %d players found, %d watchlist matches",
             team_name or "Unknown Team",
             team_id,
-            len(opponent_ids),
+            len(opponent_players),
             len(matches),
         )
         logger.info("=" * 50)
 
         scouted_at = datetime.now(timezone.utc).isoformat()
         results_to_save = []
-        for pid in opponent_ids:
-            rec = next(
-                (r for r in existing_records if str(r.get("id")) == str(pid)), None
-            )
-            name = rec.get("name", "Unknown") if rec else "Unknown"
-            pos = rec.get("position", "?") if rec else "?"
-            is_match = str(pid) in matches
+        for p in opponent_players:
+            pid = p["player_id"]
+            is_match = pid in matches
             if is_match:
-                logger.info("  [MATCH] [%s] %s (ID: %s)", pos, name, pid)
+                logger.info("  [MATCH] [%s] %s (ID: %s)", p["position"], p["name"], pid)
             results_to_save.append({
                 "team_id": team_id,
-                "player_id": str(pid),
+                "player_id": pid,
                 "team_name": team_name,
-                "player_name": name if rec else None,
-                "position": pos if rec else None,
+                "player_name": p["name"] or None,
+                "position": p["position"] or None,
+                "age": p["age"] or None,
+                "quality": p["quality"] or None,
                 "player_link": f"{_BASE_URL}/ver_jogador.asp?jog_id={pid}",
                 "scouted_at": scouted_at,
                 "is_watchlist_match": is_match,

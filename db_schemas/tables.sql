@@ -83,11 +83,17 @@ CREATE TABLE IF NOT EXISTS opponent_scout_results (
     team_name          TEXT,
     player_name        TEXT,
     position           TEXT,
+    age                INTEGER,
+    quality            TEXT,
     player_link        TEXT,
     is_watchlist_match BOOLEAN DEFAULT FALSE,
     scouted_at         TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (team_id, player_id)
 );
+
+-- Migration: add age and quality columns if upgrading from an older schema
+-- ALTER TABLE opponent_scout_results ADD COLUMN IF NOT EXISTS age INTEGER;
+-- ALTER TABLE opponent_scout_results ADD COLUMN IF NOT EXISTS quality TEXT;
 
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_players_position ON players(position);

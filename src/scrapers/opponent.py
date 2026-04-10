@@ -16,16 +16,17 @@ from src.scrapers.base import BaseScraper
 class OpponentScraper(BaseScraper):
     """Scrapes the squad listing of an opponent team page."""
 
-    def get_team_players(self, team_url: str) -> tuple[str | None, list[str]]:
-        """Extract the team name and all player IDs from an opponent team's squad page.
+    def get_team_players(self, team_url: str) -> tuple[str | None, list[dict]]:
+        """Extract the team name and all player data from an opponent team's squad page.
 
         Args:
             team_url: Full URL of the team page (e.g.
                 ``https://www.pmanager.org/ver_equipa.asp?equipa=12345``).
 
         Returns:
-            A tuple of ``(team_name, player_ids)`` where ``team_name`` may be
-            ``None`` if it cannot be determined from the page.
+            A tuple of ``(team_name, players)`` where ``team_name`` may be
+            ``None`` if it cannot be determined from the page, and ``players``
+            is a list of dicts with keys: player_id, name, age, position, quality.
         """
         # The roster URL uses vjog=1 which renders only the player list — the
         # General Info table (where the team name lives) only appears on the
@@ -65,20 +66,53 @@ class OpponentScraper(BaseScraper):
 
         roster_soup = BeautifulSoup(self.page.content(), "html.parser")
 
-        player_ids: list[str] = []
+        players: list[dict] = []
+        seen_ids: set[str] = set()
         rows = roster_soup.find_all("tr", class_=["list1", "list2"])
         logger.info("Found %d rows in squad table.", len(rows))
 
         for row in rows:
             link = row.find("a", href=re.compile(r"ver_jogador\.asp\?jog_id=\d+"))
-            if link:
-                href = link["href"]
-                try:
-                    pid = href.split("jog_id=")[-1]
-                    player_ids.append(pid)
-                except IndexError:
-                    continue
+            if not link:
+                continue
+            href = link["href"]
+            try:
+                pid = href.split("jog_id=")[-1]
+            except IndexError:
+                continue
+            if pid in seen_ids:
+                continue
+            seen_ids.add(pid)
 
-        unique_ids = list(set(player_ids))
-        logger.info("Found %d unique players in team.", len(unique_ids))
-        return team_name, unique_ids
+            name = link.get_text(strip=True)
+
+            tds = row.find_all("td")
+            if len(tds) >= 12:
+                # Position is in td[1]; use separator to preserve space between
+                # tag text and adjacent text (e.g. <b>D</b> RLC → "D RLC")
+                pos_raw = tds[1].get_text(separator=" ", strip=True)
+                position = " ".join(pos_raw.split())
+
+                age_raw = tds[3].get_text(strip=True)
+                try:
+                    age = int(age_raw)
+                except (ValueError, TypeError):
+                    age = 0
+
+                # Quality text follows the bar images in td[11]
+                quality = tds[11].get_text(strip=True)
+            else:
+                position = ""
+                age = 0
+                quality = ""
+
+            players.append({
+                "player_id": pid,
+                "name": name,
+                "age": age,
+                "position": position,
+                "quality": quality,
+            })
+
+        logger.info("Found %d unique players in team.", len(players))
+        return team_name, players

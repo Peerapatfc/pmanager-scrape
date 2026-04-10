@@ -85,7 +85,7 @@ async function getScoutedPlayerSkills(
 
   const { data: scoutRows, error: scoutError } = await supabase
     .from("opponent_scout_results")
-    .select("player_id, team_id, player_name, position")
+    .select("player_id, team_id, player_name, position, age, quality")
     .in("team_id", teamIds)
     .limit(2000)
   if (scoutError) {
@@ -114,8 +114,8 @@ async function getScoutedPlayerSkills(
     result.get(row.team_id)!.set(row.player_id, {
       name:     row.player_name ?? "",
       position: row.position ?? "",
-      age:      pd?.age ?? 0,
-      quality:  pd?.quality ?? "",
+      age:      pd?.age ?? row.age ?? 0,
+      quality:  pd?.quality ?? row.quality ?? "",
       skills:   (pd?.skills as Record<string, number>) ?? {},
     })
   }
