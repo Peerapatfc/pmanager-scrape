@@ -1,7 +1,7 @@
 # src/scrapers/match_prep.py
 """Scraper for fixture schedules, match reports (formation + ATs), and opponent rosters."""
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 from statistics import mean
 
 from bs4 import BeautifulSoup
