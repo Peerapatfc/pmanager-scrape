@@ -564,12 +564,25 @@ class SupabaseManager:
     # ------------------------------------------------------------------
 
     def upsert_upcoming_fixtures(self, fixtures: list[dict]) -> None:
-        """Replace all fixtures for a season."""
+        """Replace all fixtures for a season (delete-then-insert to avoid stale PK duplicates).
+
+        Upcoming fixtures use a generated match_id; once a match result is
+        available the scraper gets the real jogo_id, producing a different PK.
+        A plain upsert would leave both rows in the table.  Deleting the season
+        first ensures only the latest scrape survives.
+        """
         if not fixtures:
             return
+        season = fixtures[0].get("season")
+        if season:
+            try:
+                self.client.table("upcoming_fixtures").delete().eq("season", season).execute()
+                logger.info("Cleared existing fixtures for season %s", season)
+            except Exception as e:
+                logger.error("Failed to clear fixtures for season %s: %s", season, e)
         records = [{k: self._to_native(v) for k, v in f.items()} for f in fixtures]
         self._upsert_batched("upcoming_fixtures", records)
-        logger.info("Upserted %d upcoming fixtures", len(records))
+        logger.info("Inserted %d upcoming fixtures", len(records))
 
     def get_upcoming_fixtures(self, season: str) -> list[dict]:
         try:
