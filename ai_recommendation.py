@@ -109,7 +109,7 @@ def generate_message(
     Returns:
         Formatted Telegram Markdown message string.
     """
-    time_str = current_time_th.strftime("%H:%M")
+    time_str = current_time_th.strftime("%H:%M ICT")
 
     if not candidates:
         return (
@@ -177,7 +177,7 @@ def main() -> None:
 
     if not candidates:
         debug_msg = (
-            f"📉 *Market Update* ({now_th.strftime('%H:%M')})\n\n"
+            f"📉 *Market Update* ({now_th.strftime('%H:%M ICT')})\n\n"
             "No profitable flips found within budget right now.\n\n"
             "*Filter Stats:*\n"
             f"❌ Budget: {dropped['budget']}\n"
