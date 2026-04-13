@@ -13,6 +13,7 @@ sending to Supabase, since the client library rejects ``np.int64`` etc.
 from __future__ import annotations
 
 import math
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from supabase import create_client
@@ -206,6 +207,57 @@ class SupabaseManager:
             return all_rows
         except Exception as e:
             logger.error("Failed to fetch players: %s", e)
+            return []
+
+    def get_players_for_price_update(self, lookback_days: int = 7) -> list[dict[str, Any]]:
+        """Fetch only players relevant to the price updater.
+
+        Returns active listings (future deadline) plus recently-completed
+        listings (deadline within the past ``lookback_days`` days) that still
+        have no recorded sale price.  This avoids iterating over the full
+        historical player table.
+
+        Args:
+            lookback_days: How many days back to look for completed listings.
+
+        Returns:
+            List of matching player row dicts, or an empty list on error.
+        """
+        try:
+            cutoff = (
+                datetime.now(tz=timezone.utc) - timedelta(days=lookback_days)
+            ).isoformat()
+
+            # Active listings: deadline in the future
+            active_resp = (
+                self.client.table("players")
+                .select("*")
+                .gt("deadline", datetime.now(tz=timezone.utc).isoformat())
+                .execute()
+            )
+            active = active_resp.data or []
+
+            # Completed listings within lookback window that still need a price
+            completed_resp = (
+                self.client.table("players")
+                .select("*")
+                .gte("deadline", cutoff)
+                .lte("deadline", datetime.now(tz=timezone.utc).isoformat())
+                .or_("last_transfer_price.is.null,last_transfer_price.eq.0")
+                .execute()
+            )
+            completed = completed_resp.data or []
+
+            rows = {r["id"]: r for r in active + completed}
+            logger.info(
+                "Price updater scope: %d active + %d completed = %d unique players",
+                len(active),
+                len(completed),
+                len(rows),
+            )
+            return list(rows.values())
+        except Exception as e:
+            logger.error("Failed to fetch players for price update: %s", e)
             return []
 
     def update_player(self, player_id: str, data: dict[str, Any]) -> None:

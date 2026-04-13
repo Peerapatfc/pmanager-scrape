@@ -32,8 +32,8 @@ def main() -> None:
     logger.info("Starting Price Updater...")
     db = SupabaseManager()
 
-    records = db.get_all_players()
-    logger.info("Loaded %d players.", len(records))
+    records = db.get_players_for_price_update()
+    logger.info("Loaded %d players for price update.", len(records))
 
     scraper = TransferScraper(base_url="https://www.pmanager.org")
     scraper.start(headless=config.HEADLESS_MODE)
