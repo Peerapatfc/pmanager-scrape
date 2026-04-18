@@ -128,3 +128,44 @@ class OpponentScraper(BaseScraper):
 
         logger.info("Found %d unique players in team.", len(players))
         return team_name, players
+
+    def get_player_skills(self, player_id: str, base_url: str) -> dict:
+        """Scrape skill attributes from a player's profile page.
+
+        Args:
+            player_id: Numeric player ID string from PManager.
+            base_url: Base URL of PManager (e.g. ``https://www.pmanager.org``).
+
+        Returns:
+            Dict with keys ``id`` and any skill names found (e.g. ``Speed``,
+            ``Finishing``). Unknown skill names are preserved as-is so that
+            ``SupabaseManager.upsert_players`` can pack them into the
+            ``skills`` JSONB column automatically.
+        """
+        prof_url = f"{base_url}/ver_jogador.asp?jog_id={player_id}"
+        self.page.goto(prof_url)
+        try:
+            self.page.wait_for_selector("body", timeout=3000)
+        except Exception as e:
+            logger.debug("Timeout on profile page (%s): %s", player_id, e)
+
+        soup = BeautifulSoup(self.page.content(), "html.parser")
+        data: dict = {"id": player_id}
+
+        # Extract skill rows from the profile table (same pattern as TransferScraper)
+        for td in soup.find_all("td", class_=["list1", "list2"]):
+            b_tag = td.find("b")
+            if not b_tag:
+                continue
+            skill_name = b_tag.get_text(strip=True)
+            for sib in td.find_next_siblings("td"):
+                text = sib.get_text(strip=True)
+                if text.isdigit():
+                    data[skill_name] = int(text)
+                    break
+                if text and ("Fit" in text or "%" in text):
+                    data[skill_name] = text
+                    break
+
+        logger.debug("Scraped %d skill keys for player %s", len(data) - 1, player_id)
+        return data

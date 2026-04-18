@@ -124,6 +124,24 @@ def main() -> None:
         db.delete_opponent_scout_results_by_team(team_id)
         db.upsert_opponent_scout_results(results_to_save)
         logger.info("Saved %d players to opponent_scout_results.", len(results_to_save))
+
+        # Scrape individual player profiles to get skill data, then upsert
+        # into the players table so the AT matchup analysis has real numbers.
+        logger.info("Scraping skill profiles for %d opponent players…", len(opponent_players))
+        skill_records = []
+        for p in opponent_players:
+            pid = p["player_id"]
+            try:
+                skill_data = scraper.get_player_skills(pid, _BASE_URL)
+                if len(skill_data) > 1:  # more than just the id key
+                    skill_records.append(skill_data)
+            except Exception as e:
+                logger.warning("Failed to scrape skills for player %s: %s", pid, e)
+
+        if skill_records:
+            db.upsert_players(skill_records)
+            logger.info("Upserted skill data for %d players.", len(skill_records))
+
         logger.info("=" * 50)
 
     except Exception as e:

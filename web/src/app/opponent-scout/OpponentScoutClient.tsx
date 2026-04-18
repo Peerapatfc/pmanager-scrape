@@ -340,8 +340,10 @@ function OpponentTacticsPanel({
   mySquad: MySquadPlayer[]
 }) {
   const availablePlayerIds = useMemo(() => {
-    const ids = dbRows.map(r => r.player_id).filter(id => playerDbMap.has(id))
-    return ids.sort((a, b) => {
+    // Include all scouted players regardless of whether they're in playerDbMap.
+    // Skills are populated after running the scout (which now upserts to players table).
+    const ids = dbRows.map(r => r.player_id)
+    return [...new Set(ids)].sort((a, b) => {
       const posA = (dbRows.find(r => r.player_id === a)?.position ?? playerDbMap.get(a)?.position ?? "").trim().toUpperCase()
       const posB = (dbRows.find(r => r.player_id === b)?.position ?? playerDbMap.get(b)?.position ?? "").trim().toUpperCase()
       const groupA = posA.startsWith("GK") ? 0 : posA.startsWith("D") ? 1 : posA.startsWith("M") ? 2 : 3
@@ -392,10 +394,10 @@ function OpponentTacticsPanel({
 
   const selectedOppPlayers = useMemo(() =>
     dbRows
-      .filter(r => selectedIds.has(r.player_id) && playerDbMap.has(r.player_id))
+      .filter(r => selectedIds.has(r.player_id))
       .map(r => {
-        const p = playerDbMap.get(r.player_id)!
-        return { id: r.player_id, position: r.position ?? p.position ?? "M C", skills: p.skills ?? {} } as MySquadPlayer
+        const p = playerDbMap.get(r.player_id)
+        return { id: r.player_id, position: r.position ?? p?.position ?? "M C", skills: p?.skills ?? {} } as MySquadPlayer
       }),
     [selectedIds, dbRows, playerDbMap]
   )
@@ -566,7 +568,7 @@ function OpponentTacticsPanel({
           <span className="text-[9px] text-yellow-500/80 italic">Set starting 11 on Squad page for best results</span>
         )}
         {!hasSkillData && selectedOppPlayers.length > 0 && (
-          <span className="text-[9px] text-red-500/80 italic">Opponent skill data sparse — results may be inaccurate</span>
+          <span className="text-[9px] text-yellow-500/80 italic">No opponent skill data — re-run scout to fetch skills (Run Scout button above)</span>
         )}
       </div>
 

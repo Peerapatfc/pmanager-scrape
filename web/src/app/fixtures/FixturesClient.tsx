@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { CalendarDays, Check, ChevronRight, RefreshCw, Search, Shield, Zap, Activity } from "lucide-react"
 import type { UpcomingFixture, FixtureAnalysis, ATPatternRecord } from "@/types"
 import {
@@ -506,16 +506,38 @@ export default function FixturesClient({ fixtures, analysisMap, myPlayers, seaso
     fixtures.length > 0 ? fixtures[0] : null
   )
 
+  const norm = (s: string | null | undefined) =>
+    (s ?? "").trim().replace(/\u00a0/g, " ").toLowerCase()
+
+  // Derive my team name from fixture data — more reliable than team_info string matching,
+  // which can fail if the scraped name format differs between pages.
+  // My team appears in every fixture; pick the name with the highest occurrence count.
+  const resolvedMyTeam = useMemo(() => {
+    if (fixtures.length === 0) return norm(myTeamName)
+    const counts = new Map<string, { raw: string; count: number }>()
+    fixtures.forEach(f => {
+      for (const raw of [f.home_team_name, f.away_team_name]) {
+        if (!raw) continue
+        const key = norm(raw)
+        const entry = counts.get(key)
+        if (entry) entry.count++
+        else counts.set(key, { raw, count: 1 })
+      }
+    })
+    const sorted = [...counts.values()].sort((a, b) => b.count - a.count)
+    // If the top name appears far more than the second (it's in almost every fixture),
+    // use it. Otherwise fall back to myTeamName (in case of small fixture lists).
+    const top = sorted[0]
+    const second = sorted[1]
+    if (top && (!second || top.count > second.count * 1.5)) return norm(top.raw)
+    return norm(myTeamName)
+  }, [fixtures, myTeamName]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Derive opponent team id: the team that isn't ours
   function getOpponentId(fixture: UpcomingFixture): string | null {
-    // Normalise names: trim + collapse non-breaking spaces for robust comparison
-    const norm = (s: string | null | undefined) =>
-      (s ?? "").trim().replace(/\u00a0/g, " ").toLowerCase()
-    const myName = norm(myTeamName)
-    if (myName && norm(fixture.home_team_name) === myName) return fixture.away_team_id ?? null
-    if (myName && norm(fixture.away_team_name) === myName) return fixture.home_team_id ?? null
-    // Fallback when myTeamName unavailable — prefer away, but never return null
-    // if one side has data.
+    if (resolvedMyTeam && norm(fixture.home_team_name) === resolvedMyTeam) return fixture.away_team_id ?? null
+    if (resolvedMyTeam && norm(fixture.away_team_name) === resolvedMyTeam) return fixture.home_team_id ?? null
+    // Fallback when team name unavailable — prefer away, but never return null
     return fixture.away_team_id ?? fixture.home_team_id ?? null
   }
 
@@ -547,7 +569,7 @@ export default function FixturesClient({ fixtures, analysisMap, myPlayers, seaso
               const oppId = getOpponentId(f)
               const hasAnalysis = oppId ? !!analysisMap[oppId] : false
               const isSelected = selected?.match_id === f.match_id
-              const fIsHome = f.home_team_name?.trim().replace(/\u00a0/g, " ").toLowerCase() === myTeamName.trim().replace(/\u00a0/g, " ").toLowerCase()
+              const fIsHome = norm(f.home_team_name) === resolvedMyTeam
 
               return (
                 <button
@@ -588,7 +610,7 @@ export default function FixturesClient({ fixtures, analysisMap, myPlayers, seaso
                 season={season}
                 oppId={selectedOppId}
                 scoutingCoverage={scoutingCoverage}
-                myTeamName={myTeamName}
+                myTeamName={resolvedMyTeam}
               />
             ) : (
               <div className="text-center py-12 text-neutral-500">
