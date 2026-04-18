@@ -161,6 +161,15 @@ python update_final_prices.py
 
 # Update team info snapshot
 python main_team_info.py
+
+# Sync my squad from plantel.asp → my_squad table
+python main_squad_sync.py
+
+# Sync upcoming fixtures → fixtures table
+python main_fixtures_sync.py
+
+# Run match prep analysis
+python main_match_prep.py
 ```
 
 ### Frontend
@@ -234,6 +243,36 @@ pnpm start       # Start production server
 | `current_division` | TEXT | League/division |
 | `recorded_at` | TIMESTAMPTZ | Snapshot timestamp |
 
+### `my_squad` — Current squad players
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `player_id` | TEXT PK | FK → players.id |
+| `position` | TEXT | Full position string (e.g. "D C", "M RC") |
+| `synced_at` | TIMESTAMPTZ | Last sync time |
+
+### `saved_lineups` — Named lineup saves
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | TEXT PK | UUID |
+| `name` | TEXT | Lineup name |
+| `formation_idx` | INT | Formation index |
+| `lineup` | JSONB | `(string \| null)[]` — player_id per slot |
+| `saved_at` | TIMESTAMPTZ | Save time |
+
+### `opponent_plans` — Saved tactical plans per opponent
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | TEXT PK | UUID |
+| `team_id` | TEXT | Opponent team ID (indexed) |
+| `team_name` | TEXT | Opponent team name |
+| `plan_name` | TEXT | Plan label |
+| `player_ids` | JSONB | `string[]` — selected opponent player IDs |
+| `at_settings` | JSONB | AT configuration object |
+| `saved_at` | TIMESTAMPTZ | Save time |
+
 ---
 
 ## GitHub Actions Workflows
@@ -263,6 +302,9 @@ All workflows use `SUPABASE_URL`, `SUPABASE_KEY`, `PM_USERNAME`, `PM_PASSWORD`, 
 | `/players` | `PlayersClient.tsx` | `players` table | All player profiles, sortable |
 | `/transfers` | `TransfersClient.tsx` | `transfer_listings` table | Market with ROI calculator |
 | `/bot-opportunities` | `BotOpportunitiesClient.tsx` | `bot_opportunities` table | BOT targets, filtering/sorting/pagination |
+| `/squad` | `SquadClient.tsx` | `my_squad` + `players` + `saved_lineups` API | Squad builder with formation slots + saved lineups |
+| `/opponent-scout` | `OpponentScoutClient.tsx` | `opponent_plans` + `my_squad` | AT matchup analysis vs opponents |
+| `/fixtures` | `FixturesClient.tsx` | `fixtures` | Upcoming fixtures |
 
 All data is fetched server-side in `page.tsx` files and passed to `*Client.tsx` components for client-side interactivity (filtering, sorting, pagination).
 
@@ -287,6 +329,7 @@ All data is fetched server-side in `page.tsx` files and passed to `*Client.tsx` 
 - **Supabase client:** Import from `@/lib/supabase` — do not create new clients inline.
 - **Styling:** Tailwind CSS utility classes only — no separate CSS files. Follow existing glassmorphism patterns (backdrop-blur, bg-white/10, etc.).
 - **Icons:** Lucide React only (`import { IconName } from 'lucide-react'`).
+- **API routes:** CRUD operations live in `web/src/app/api/<resource>/route.ts` (collection) and `web/src/app/api/<resource>/[id]/route.ts` (item). Use `SUPABASE_KEY` (service role) server-side — not the anon browser client.
 
 ---
 
@@ -348,6 +391,8 @@ All data is fetched server-side in `page.tsx` files and passed to `*Client.tsx` 
 **Position group detection must use `startsWith()`:** Positions scraped from plantel.asp may lack spaces (`"DRL"` not `"D RL"`). Use `p.startsWith("D")` not `split(" ")[0] === "D"`.
 
 **`parse_deadline()` — PManager deadlines are UTC (GMT+0):** PManager displays deadline strings (e.g. `"Today at 14:30"`) in UTC, not local time. The scraper saves them as-is to the DB. The frontend `formatDeadline()` treats stored values as UTC (appends `Z`) and converts to Bangkok time (UTC+7) for display. Do NOT append `+07:00` to stored deadline strings — that would shift the displayed time by −7 hours.
+
+**AT matchup `result` field is ternary, not boolean:** `computeATMatchup()` returns `result: true | false | null` (null = no data) and `partial: boolean`. Never coerce to bool — `partial` rows display differently from wins/losses.
 
 **`src/services/gsheets.py`:** A Google Sheets integration (`SheetManager`) exists but is not part of the main scraper pipeline. Not imported by any entry script — only used if Google Sheets export is needed. Omitted from the project structure above intentionally (optional / legacy).
 
