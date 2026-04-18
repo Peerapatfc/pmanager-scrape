@@ -115,6 +115,14 @@ export interface OpponentPlayer {
   source: "db" | "est" | "est_low" | "scout" | "hidden"
 }
 
+export interface SavedLineup {
+  id: string
+  name: string
+  formation_idx: number
+  lineup: (string | null)[]
+  saved_at: string
+}
+
 export interface FormationHistoryEntry {
   match_id: string
   formation: string | null

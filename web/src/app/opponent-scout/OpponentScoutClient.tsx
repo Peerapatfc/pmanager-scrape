@@ -25,7 +25,8 @@ import {
 import { supabase } from "@/lib/supabase";
 import { PAGE_SIZE, DEBOUNCE_MS, POSITIONS } from "@/lib/constants";
 import { formatDeadline, qualityColor } from "@/lib/utils";
-import type { OpponentScoutResult, Player } from "@/types";
+import { FORMATIONS, slotToGroup } from "@/lib/formations";
+import type { OpponentScoutResult, Player, SavedLineup } from "@/types";
 
 // ── AT Matchup types & helpers ────────────────────────────────────────────────
 interface MySquadPlayer { id: string; position: string; skills: Record<string, number> }
@@ -240,10 +241,16 @@ function OpponentTacticsPanel({
   playerDbMap: Map<string, Player>
   mySquad: MySquadPlayer[]
 }) {
-  const availablePlayerIds = useMemo(
-    () => dbRows.map(r => r.player_id).filter(id => playerDbMap.has(id)),
-    [dbRows, playerDbMap]
-  )
+  const availablePlayerIds = useMemo(() => {
+    const ids = dbRows.map(r => r.player_id).filter(id => playerDbMap.has(id))
+    return ids.sort((a, b) => {
+      const posA = (dbRows.find(r => r.player_id === a)?.position ?? playerDbMap.get(a)?.position ?? "").trim().toUpperCase()
+      const posB = (dbRows.find(r => r.player_id === b)?.position ?? playerDbMap.get(b)?.position ?? "").trim().toUpperCase()
+      const groupA = posA.startsWith("GK") ? 0 : posA.startsWith("D") ? 1 : posA.startsWith("M") ? 2 : 3
+      const groupB = posB.startsWith("GK") ? 0 : posB.startsWith("D") ? 1 : posB.startsWith("M") ? 2 : 3
+      return groupA - groupB
+    })
+  }, [dbRows, playerDbMap])
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     () => new Set(availablePlayerIds.slice(0, 11))
@@ -254,12 +261,35 @@ function OpponentTacticsPanel({
   const [saving, setSaving] = useState(false)
   const [activePlanId, setActivePlanId] = useState<string | null>(null)
 
+  // Our lineup selector
+  const [savedLineups, setSavedLineups] = useState<SavedLineup[]>([])
+  const [selectedLineupId, setSelectedLineupId] = useState<string>("")  // "" = full squad
+
   useEffect(() => {
     fetch(`/api/opponent-plans?team_id=${encodeURIComponent(teamId)}`)
       .then(r => r.ok ? r.json() : [])
       .then(setPlans)
       .catch(() => {})
+    fetch("/api/saved-lineups")
+      .then(r => r.ok ? r.json() : [])
+      .then(setSavedLineups)
+      .catch(() => {})
   }, [teamId])
+
+  // Build our effective players: either from a saved lineup (with slot positions) or full mySquad
+  const effectiveMyPlayers = useMemo((): MySquadPlayer[] => {
+    if (!selectedLineupId) return mySquad
+    const saved = savedLineups.find(l => l.id === selectedLineupId)
+    if (!saved) return mySquad
+    const slots = FORMATIONS[saved.formation_idx]?.slots ?? []
+    const squadMap = new Map(mySquad.map(p => [p.id, p]))
+    return saved.lineup.flatMap((playerId, i) => {
+      if (!playerId) return []
+      const player = squadMap.get(playerId)
+      if (!player) return []
+      return [{ ...player, position: slotToGroup(slots[i] ?? "CM") }]
+    })
+  }, [selectedLineupId, savedLineups, mySquad])
 
   const selectedOppPlayers = useMemo(() =>
     dbRows
@@ -272,9 +302,9 @@ function OpponentTacticsPanel({
   )
 
   // Our ATs vs their lineup: my team attacks, they defend
-  const ourATResults = useMemo(() => computeATMatchup(mySquad, selectedOppPlayers as unknown as Player[]), [mySquad, selectedOppPlayers])
+  const ourATResults = useMemo(() => computeATMatchup(effectiveMyPlayers, selectedOppPlayers as unknown as Player[]), [effectiveMyPlayers, selectedOppPlayers])
   // Their ATs vs our defense: they attack, we defend
-  const theirATResults = useMemo(() => computeATMatchup(selectedOppPlayers as unknown as Player[], mySquad as unknown as Player[]), [selectedOppPlayers, mySquad])
+  const theirATResults = useMemo(() => computeATMatchup(selectedOppPlayers as unknown as Player[], effectiveMyPlayers as unknown as Player[]), [selectedOppPlayers, effectiveMyPlayers])
 
   function togglePlayer(id: string) {
     setSelectedIds(prev => {
@@ -342,6 +372,28 @@ function OpponentTacticsPanel({
       </div>
 
       <div className="p-4 space-y-4">
+
+        {/* ── Our lineup selector ───────────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold shrink-0">Our Lineup:</span>
+          <select
+            value={selectedLineupId}
+            onChange={e => setSelectedLineupId(e.target.value)}
+            className="bg-neutral-900 border border-neutral-700 text-xs rounded px-2 py-1 text-neutral-300 outline-none focus:border-orange-500 transition-colors"
+          >
+            <option value="">Full Squad ({mySquad.length} players)</option>
+            {savedLineups.map(l => (
+              <option key={l.id} value={l.id}>
+                {l.name} — {FORMATIONS[l.formation_idx]?.name ?? `Formation ${l.formation_idx}`}
+              </option>
+            ))}
+          </select>
+          {selectedLineupId && (
+            <span className="text-[10px] text-emerald-500/70 italic">
+              {effectiveMyPlayers.length} players from saved lineup
+            </span>
+          )}
+        </div>
 
         {/* ── Saved plans ──────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2">
