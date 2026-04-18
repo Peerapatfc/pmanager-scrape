@@ -96,6 +96,13 @@ function avgSk<T extends { skills: Record<string, number> }>(players: T[], field
   return players.reduce((s, p) => s + (p.skills?.[field] ?? 0), 0) / players.length;
 }
 
+interface ATCondition {
+  label: string
+  mine: number
+  theirs: number
+  wins: boolean
+}
+
 interface ATMatchup {
   label: string;
   mine: number | null;
@@ -103,6 +110,8 @@ interface ATMatchup {
   /** true=win, false=lose, null=N/A */
   result: boolean | null;
   partial?: boolean;
+  /** Per-condition breakdown — only present for multi-condition ATs */
+  conditions?: ATCondition[];
 }
 
 function computeATMatchup(my: MySquadPlayer[], opp: Player[]): ATMatchup[] {
@@ -129,12 +138,18 @@ function computeATMatchup(my: MySquadPlayer[], opp: Player[]): ATMatchup[] {
     return { partial: true, result: false };
   }
 
-  function row(label: string, conditions: { mine: number; theirs: number; lowerIsBetter?: boolean }[]): ATMatchup {
+  function row(label: string, conditions: { label: string; mine: number; theirs: number; lowerIsBetter?: boolean }[]): ATMatchup {
     const res = multi(conditions);
     const mine = conditions[0].mine;
     const theirs = conditions[0].theirs;
-    if (typeof res === "object") return { label, mine, theirs, result: false, partial: true };
-    return { label, mine, theirs, result: res };
+    const conds: ATCondition[] = conditions.map(c => ({
+      label: c.label,
+      mine: c.mine,
+      theirs: c.theirs,
+      wins: c.lowerIsBetter ? c.mine < c.theirs : c.mine > c.theirs,
+    }))
+    if (typeof res === "object") return { label, mine, theirs, result: false, partial: true, conditions: conds };
+    return { label, mine, theirs, result: res, conditions: conds };
   }
 
   function single(label: string, mine: number | null, theirs: number | null): ATMatchup {
@@ -144,24 +159,24 @@ function computeATMatchup(my: MySquadPlayer[], opp: Player[]): ATMatchup[] {
 
   const results: ATMatchup[] = [
     row("Pressing – High", [
-      { mine: a(myAll, "Speed"),   theirs: a(oppAll, "Speed") },
-      { mine: a(myAll, "Passing"), theirs: a(oppAll, "Passing") },
+      { label: "Speed",   mine: a(myAll, "Speed"),   theirs: a(oppAll, "Speed") },
+      { label: "Passing", mine: a(myAll, "Passing"), theirs: a(oppAll, "Passing") },
     ]),
     row("Pressing – Low", [
-      { mine: a(myAll, "Speed"),    theirs: a(oppAll, "Speed"),    lowerIsBetter: true },
-      { mine: a(myAll, "Tackling"), theirs: a(oppAll, "Tackling") },
+      { label: "Speed (lower=ok)", mine: a(myAll, "Speed"),    theirs: a(oppAll, "Speed"),    lowerIsBetter: true },
+      { label: "Tackling",         mine: a(myAll, "Tackling"), theirs: a(oppAll, "Tackling") },
     ]),
     row("Counter Attack", [
-      { mine: a(myAll, "Speed"),   theirs: a(oppAll, "Speed") },
-      { mine: a(myAll, "Passing"), theirs: a(oppAll, "Passing") },
+      { label: "Speed",   mine: a(myAll, "Speed"),   theirs: a(oppAll, "Speed") },
+      { label: "Passing", mine: a(myAll, "Passing"), theirs: a(oppAll, "Passing") },
     ]),
     row("Offside Trap", [
-      { mine: a(myD, "Positioning"), theirs: a(oppF, "Positioning") },
-      { mine: a(myD, "Speed"),       theirs: a(oppF, "Speed") },
+      { label: "DF Positioning vs FW", mine: a(myD, "Positioning"), theirs: a(oppF, "Positioning") },
+      { label: "DF Speed vs FW",       mine: a(myD, "Speed"),       theirs: a(oppF, "Speed") },
     ]),
     row("High Balls", [
-      { mine: a(myAll, "Heading"),  theirs: a(oppAll, "Heading") },
-      { mine: a(myAll, "Strength"), theirs: a(oppAll, "Strength") },
+      { label: "Heading",  mine: a(myAll, "Heading"),  theirs: a(oppAll, "Heading") },
+      { label: "Strength", mine: a(myAll, "Strength"), theirs: a(oppAll, "Strength") },
     ]),
     single("One on Ones",
       myMF.length  ? (a(myMF,  "Technique") + a(myMF,  "Strength")) / 2 : null,
@@ -198,31 +213,53 @@ function computeATMatchup(my: MySquadPlayer[], opp: Player[]): ATMatchup[] {
   return results;
 }
 
-function ATResultRow({ label, mine, theirs, result, partial }: { label: string; mine: number | null; theirs: number | null; result: boolean | null; partial?: boolean }) {
+function ATResultRow({ label, mine, theirs, result, partial, conditions }: ATMatchup) {
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-900 rounded text-xs">
-      <span className="text-neutral-400 w-36 shrink-0 text-[11px]">{label}</span>
-      {result === null ? (
-        <span className="text-neutral-600 italic text-[10px]">N/A</span>
-      ) : (
-        <>
-          <span className="font-mono text-[11px] text-neutral-300 w-8 text-right shrink-0">
-            {mine !== null ? mine.toFixed(1) : "—"}
-          </span>
-          <span className="text-neutral-600 text-[10px] shrink-0">vs</span>
-          <span className="font-mono text-[11px] text-neutral-500 w-8 shrink-0">
-            {theirs !== null ? theirs.toFixed(1) : "—"}
-          </span>
-          <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
-            partial
-              ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/25"
-              : result
-              ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/25"
-              : "text-red-400 bg-red-500/10 border-red-500/25"
-          }`}>
-            {partial ? "~ Partial" : result ? "✓ Win" : "✗ Lose"}
-          </span>
-        </>
+    <div className="bg-neutral-900 rounded text-xs overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-1.5">
+        <span className="text-neutral-400 w-36 shrink-0 text-[11px]">{label}</span>
+        {result === null ? (
+          <span className="text-neutral-600 italic text-[10px]">N/A</span>
+        ) : (
+          <>
+            <span className="font-mono text-[11px] text-neutral-300 w-8 text-right shrink-0">
+              {mine !== null ? mine.toFixed(1) : "—"}
+            </span>
+            <span className="text-neutral-600 text-[10px] shrink-0">vs</span>
+            <span className="font-mono text-[11px] text-neutral-500 w-8 shrink-0">
+              {theirs !== null ? theirs.toFixed(1) : "—"}
+            </span>
+            <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+              partial
+                ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/25"
+                : result
+                ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/25"
+                : "text-red-400 bg-red-500/10 border-red-500/25"
+            }`}>
+              {partial ? "~ Partial" : result ? "✓ Win" : "✗ Lose"}
+            </span>
+          </>
+        )}
+      </div>
+      {/* Condition breakdown — only shown when partial */}
+      {partial && conditions && (
+        <div className="px-3 pb-2 space-y-0.5 border-t border-neutral-800/60 pt-1.5">
+          {conditions.map(c => (
+            <div key={c.label} className="flex items-center gap-2 text-[10px]">
+              <span className="text-neutral-600 w-40 shrink-0">{c.label}</span>
+              <span className={`font-mono w-8 text-right shrink-0 ${c.wins ? "text-emerald-400" : "text-neutral-400"}`}>
+                {c.mine.toFixed(1)}
+              </span>
+              <span className="text-neutral-700 shrink-0">vs</span>
+              <span className={`font-mono w-8 shrink-0 ${!c.wins ? "text-red-400/80" : "text-neutral-500"}`}>
+                {c.theirs.toFixed(1)}
+              </span>
+              <span className={`font-bold ${c.wins ? "text-emerald-500" : "text-red-500"}`}>
+                {c.wins ? "✓" : "✗"}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
