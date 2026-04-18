@@ -145,9 +145,9 @@ class OpponentScraper(BaseScraper):
         prof_url = f"{base_url}/ver_jogador.asp?jog_id={player_id}"
         self.page.goto(prof_url)
         try:
-            self.page.wait_for_selector("body", timeout=3000)
+            self.page.wait_for_selector("div#infos", timeout=5000)
         except Exception as e:
-            logger.debug("Timeout on profile page (%s): %s", player_id, e)
+            logger.debug("Timeout waiting for div#infos (%s): %s", player_id, e)
 
         soup = BeautifulSoup(self.page.content(), "html.parser")
         data: dict = {"id": player_id}
