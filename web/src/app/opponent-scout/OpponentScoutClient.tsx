@@ -20,6 +20,9 @@ import {
   Bookmark,
   Trash2,
   X,
+  Copy,
+  Check,
+  Shield,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -355,6 +358,7 @@ function OpponentTacticsPanel({
   const [saveName, setSaveName] = useState("")
   const [saving, setSaving] = useState(false)
   const [activePlanId, setActivePlanId] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   // Our lineup selector
   const [savedLineups, setSavedLineups] = useState<SavedLineup[]>([])
@@ -401,6 +405,16 @@ function OpponentTacticsPanel({
   // Their ATs vs our defense: they attack, we defend
   const theirATResults = useMemo(() => computeATMatchup(selectedOppPlayers as unknown as Player[], effectiveMyPlayers as unknown as Player[]), [selectedOppPlayers, effectiveMyPlayers])
 
+  const defenseScore = useMemo(() => {
+    // theirATResults: their attack vs our defense — theirWins=true means they beat us
+    const beats  = theirATResults.filter(r => r.result === true && !r.partial).length
+    const partial = theirATResults.filter(r => r.partial === true).length
+    const countered = theirATResults.filter(r => r.result === false && !r.partial).length
+    const dangerATs = theirATResults.filter(r => r.result === true && !r.partial).map(r => r.label)
+    const counteredATs = theirATResults.filter(r => r.result === false && !r.partial).map(r => r.label)
+    return { beats, partial, countered, dangerATs, counteredATs }
+  }, [theirATResults])
+
   const matchupScore = useMemo(() => {
     const wins = ourATResults.filter(r => r.result === true).length
     const partials = ourATResults.filter(r => r.partial === true).length
@@ -431,6 +445,31 @@ function OpponentTacticsPanel({
     }).filter(g => g.myCount > 0 || g.oppCount > 0)
   }, [effectiveMyPlayers, selectedOppPlayers])
 
+  const atConflicts = useMemo(() => {
+    const warnings: string[] = []
+    if (atSettings.offside_trap && atSettings.counter_attack)
+      warnings.push("Offside Trap + Counter Attack — contradictory (high line vs deep defend)")
+    if (atSettings.pressing === "High" && atSettings.keeping === "Rush Out")
+      warnings.push("High Pressing + Keeping Rush Out — GK rushes out while team presses high")
+    if (atSettings.high_balls && atSettings.one_on_ones)
+      warnings.push("High Balls + One on Ones — conflicting attacking approaches")
+    return warnings
+  }, [atSettings])
+
+  const qualityDist = useMemo(() => {
+    const ORDER = ["World Class", "Excellent", "Formidable", "Good", "Average", "Poor"]
+    const counts: Record<string, number> = {}
+    selectedOppPlayers.forEach(p => {
+      const q = playerDbMap.get(p.id)?.quality ?? "Unknown"
+      counts[q] = (counts[q] ?? 0) + 1
+    })
+    return Object.entries(counts).sort((a, b) => {
+      const ia = ORDER.indexOf(a[0])
+      const ib = ORDER.indexOf(b[0])
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+    })
+  }, [selectedOppPlayers, playerDbMap])
+
   const threatPlayers = useMemo(() => {
     const ATTACK_SKILLS = ["Finishing", "Technique", "Speed", "Heading", "Strength"]
     return [...selectedOppPlayers]
@@ -442,6 +481,29 @@ function OpponentTacticsPanel({
       .sort((a, b) => b.threatScore - a.threatScore)
       .slice(0, 3)
   }, [selectedOppPlayers, dbRows])
+
+  function handleCopy() {
+    const d = selectedOppPlayers.filter(p => posG(p.position) === "D").length
+    const m = selectedOppPlayers.filter(p => posG(p.position) === "M").length
+    const f = selectedOppPlayers.filter(p => posG(p.position) === "F").length
+    const formation = [d, m, f].filter(Boolean).join("-")
+    const lines: string[] = [
+      `vs ${teamName}${formation ? ` [${formation}]` : ""}`,
+      `Matchup: ${matchupScore.wins}W / ${matchupScore.partials}P / ${matchupScore.losses}L`,
+    ]
+    if (matchupScore.recommended.length > 0)
+      lines.push(`✓ Enable: ${matchupScore.recommended.join(", ")}`)
+    if (matchupScore.avoid.length > 0)
+      lines.push(`✗ Avoid: ${matchupScore.avoid.join(", ")}`)
+    if (threatPlayers.length > 0)
+      lines.push(`▲ Watch: ${threatPlayers.map((p, i) => `#${i + 1} ${p.name} (${p.threatScore.toFixed(1)})`).join(", ")}`)
+    if (atSettings.notes?.trim())
+      lines.push(`Notes: ${atSettings.notes.trim()}`)
+    navigator.clipboard.writeText(lines.join("\n")).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
 
   function togglePlayer(id: string) {
     setSelectedIds(prev => {
@@ -577,6 +639,19 @@ function OpponentTacticsPanel({
                 {saving ? <Loader2 size={11} className="animate-spin" /> : <Bookmark size={11} />}
                 Save
               </button>
+              <button
+                onClick={handleCopy}
+                disabled={selectedOppPlayers.length === 0}
+                title="Copy plan summary to clipboard"
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-40 ${
+                  copied
+                    ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
+                    : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-500"
+                }`}
+              >
+                {copied ? <Check size={11} /> : <Copy size={11} />}
+                {copied ? "Copied" : "Copy"}
+              </button>
             </div>
             <textarea
               placeholder="Pre-match notes…"
@@ -624,6 +699,19 @@ function OpponentTacticsPanel({
         {/* ── Formation Visual ─────────────────────────────────────── */}
         {selectedOppPlayers.length > 0 && (
           <FormationVisual players={selectedOppPlayers as unknown as MySquadPlayer[]} dbRows={dbRows} />
+        )}
+
+        {/* ── Quality Distribution ─────────────────────────────────── */}
+        {qualityDist.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold shrink-0">Quality:</span>
+            {qualityDist.map(([q, count]) => (
+              <span key={q} className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-current/20 text-[11px] font-medium bg-neutral-900 ${qualityColor(q)}`}>
+                {q}
+                <span className="font-bold font-mono">{count}</span>
+              </span>
+            ))}
+          </div>
         )}
 
         {/* ── Opponent AT settings ──────────────────────────────────── */}
@@ -697,20 +785,36 @@ function OpponentTacticsPanel({
           </div>
         </div>
 
+        {/* ── AT Conflict Warnings ─────────────────────────────────── */}
+        {atConflicts.length > 0 && (
+          <div className="space-y-1">
+            {atConflicts.map(w => (
+              <div key={w} className="flex items-start gap-2 px-3 py-1.5 bg-yellow-500/8 border border-yellow-500/25 rounded-lg">
+                <AlertCircle size={12} className="text-yellow-400 shrink-0 mt-0.5" />
+                <span className="text-[11px] text-yellow-400/90">{w}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* ── Matchup Score + Recommendations ─────────────────────── */}
         {selectedOppPlayers.length > 0 && (
           <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-3 p-3 bg-neutral-950/60 rounded-xl border border-neutral-800">
-              <span className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold shrink-0">Our Matchup</span>
-              <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-bold">
-                {matchupScore.wins}W
-              </span>
-              <span className="px-2.5 py-1 rounded-lg bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-sm font-bold">
-                {matchupScore.partials}P
-              </span>
-              <span className="px-2.5 py-1 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-sm font-bold">
-                {matchupScore.losses}L
-              </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {/* Our ATs vs their defense */}
+              <div className="flex flex-wrap items-center gap-2 p-3 bg-neutral-950/60 rounded-xl border border-neutral-800">
+                <span className="text-[10px] text-emerald-500/70 uppercase tracking-wider font-semibold shrink-0 w-full">Our Attack</span>
+                <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-bold">{matchupScore.wins}W</span>
+                <span className="px-2 py-0.5 rounded-lg bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-sm font-bold">{matchupScore.partials}P</span>
+                <span className="px-2 py-0.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-sm font-bold">{matchupScore.losses}L</span>
+              </div>
+              {/* Their ATs vs our defense */}
+              <div className="flex flex-wrap items-center gap-2 p-3 bg-neutral-950/60 rounded-xl border border-neutral-800">
+                <span className="text-[10px] text-red-500/70 uppercase tracking-wider font-semibold shrink-0 w-full">Their Attack</span>
+                <span className="px-2 py-0.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-sm font-bold">{defenseScore.beats} Beat Us</span>
+                <span className="px-2 py-0.5 rounded-lg bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-sm font-bold">{defenseScore.partial}P</span>
+                <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-sm font-bold">{defenseScore.countered} Countered</span>
+              </div>
             </div>
             <div className="space-y-1.5">
               {matchupScore.recommended.length > 0 && (
@@ -728,6 +832,26 @@ function OpponentTacticsPanel({
                   <span className="text-[10px] text-red-500/70 uppercase tracking-wider font-semibold shrink-0">Avoid:</span>
                   {matchupScore.avoid.map(label => (
                     <span key={label} className="px-2 py-0.5 rounded bg-red-500/10 border border-red-500/25 text-red-400 text-[11px] font-medium">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {defenseScore.dangerATs.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <span className="text-[10px] text-orange-500/70 uppercase tracking-wider font-semibold shrink-0 flex items-center gap-1"><Shield size={9} /> Danger if they use:</span>
+                  {defenseScore.dangerATs.map(label => (
+                    <span key={label} className="px-2 py-0.5 rounded bg-orange-500/10 border border-orange-500/25 text-orange-400 text-[11px] font-medium">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {defenseScore.counteredATs.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <span className="text-[10px] text-emerald-500/70 uppercase tracking-wider font-semibold shrink-0 flex items-center gap-1"><Shield size={9} /> We counter:</span>
+                  {defenseScore.counteredATs.map(label => (
+                    <span key={label} className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[11px] font-medium">
                       {label}
                     </span>
                   ))}
