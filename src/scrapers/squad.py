@@ -65,13 +65,14 @@ class SquadScraper(BaseScraper):
     # ------------------------------------------------------------------
 
     def _parse_squad(self) -> list[dict[str, Any]]:
-        """Navigate to plantel.asp and parse the skills table.
+        """Navigate to plantel.asp and parse the skills + quality/potential tables.
 
         Returns:
             List of player record dicts.
         """
+        # --- filtro=1: skills ---
         url = f"{self.base_url}/plantel.asp?equipa=2&filtro=1&pos=&sort="
-        logger.info("Fetching squad page: %s", url)
+        logger.info("Fetching squad skills page: %s", url)
         self.page.goto(url)
         self.page.wait_for_load_state("networkidle")
 
@@ -86,7 +87,55 @@ class SquadScraper(BaseScraper):
                 players.append(record)
 
         logger.info("Parsed %d valid squad players", len(players))
+
+        # --- filtro=5: quality & potential ---
+        qp_map = self._parse_quality_potential()
+        for p in players:
+            extra = qp_map.get(p["player_id"], {})
+            p["quality"] = extra.get("quality")
+            p["potential"] = extra.get("potential")
+
         return players
+
+    def _parse_quality_potential(self) -> dict[str, dict[str, str | None]]:
+        """Fetch plantel.asp filtro=5 and return {player_id: {quality, potential}}.
+
+        filtro=5 column layout (tr.list1 / tr.list2):
+          0: icon | 1: position | 2: name+link | 3: age | 4: country
+          5: quality | 6: potential | ...
+        """
+        url = f"{self.base_url}/plantel.asp?equipa=2&filtro=5&pos=&sort="
+        logger.info("Fetching squad quality/potential page: %s", url)
+        self.page.goto(url)
+        self.page.wait_for_load_state("networkidle")
+
+        soup = BeautifulSoup(self.page.content(), "html.parser")
+        rows = soup.select("tr.list1, tr.list2")
+
+        result: dict[str, dict[str, str | None]] = {}
+        for row in rows:
+            cells = row.find_all("td")
+            if len(cells) < 7:
+                continue
+            link = cells[2].find("a")
+            if not link:
+                continue
+            href = link.get("href", "")
+            match = re.search(r"jog_id=(\d+)", href)
+            if not match:
+                continue
+            player_id = match.group(1)
+
+            quality_raw = cells[5].get_text(strip=True)
+            potential_raw = cells[6].get_text(strip=True)
+
+            result[player_id] = {
+                "quality": quality_raw if quality_raw and quality_raw != "—" else None,
+                "potential": potential_raw if potential_raw and potential_raw != "—" else None,
+            }
+
+        logger.info("Parsed quality/potential for %d players", len(result))
+        return result
 
     def _parse_row(self, row: Any) -> dict[str, Any] | None:
         """Parse a single squad table row.

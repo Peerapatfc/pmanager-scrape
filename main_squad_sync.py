@@ -36,6 +36,10 @@ def main() -> None:
             "position": r["position"],
             "age": r["age"],
         }
+        if r.get("quality") is not None:
+            rec["quality"] = r["quality"]
+        if r.get("potential") is not None:
+            rec["potential"] = r["potential"]
         for skill in SKILL_COLUMNS:
             if skill in r:
                 rec[skill] = r[skill]
