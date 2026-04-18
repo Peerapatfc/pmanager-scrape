@@ -34,14 +34,19 @@ function formatDate(iso: string | null): string {
   })
 }
 
-function resultBadge(result: string | undefined) {
+function resultBadge(result: string | undefined, isHome?: boolean) {
   if (!result) return null
   const r = result.trim()
   if (!r) return null
   const [a, b] = r.split(/[-:]/).map(Number)
-  const color = isNaN(a) || isNaN(b)
-    ? "text-neutral-400"
-    : a > b ? "text-emerald-400" : a < b ? "text-red-400" : "text-yellow-400"
+  let color: string
+  if (isNaN(a) || isNaN(b)) {
+    color = "text-neutral-400"
+  } else {
+    const myScore  = isHome !== undefined ? (isHome ? a : b) : a
+    const oppScore = isHome !== undefined ? (isHome ? b : a) : b
+    color = myScore > oppScore ? "text-emerald-400" : myScore < oppScore ? "text-red-400" : "text-yellow-400"
+  }
   return <span className={`text-xs font-bold ${color}`}>{r}</span>
 }
 
@@ -201,6 +206,7 @@ function AnalysisPanel({
   season,
   oppId,
   scoutingCoverage,
+  myTeamName,
 }: {
   fixture: UpcomingFixture
   analysis: FixtureAnalysis | null
@@ -208,6 +214,7 @@ function AnalysisPanel({
   season: string
   oppId: string | null
   scoutingCoverage: Record<string, { scouted: number; total: number }>
+  myTeamName: string
 }) {
   const [triggering, setTriggering] = useState(false)
   const [triggerMsg, setTriggerMsg] = useState<string | null>(null)
@@ -215,6 +222,9 @@ function AnalysisPanel({
   const [scoutMsg, setScoutMsg] = useState<string | null>(null)
 
   const coverage = oppId ? scoutingCoverage[oppId] : undefined
+  const norm = (s: string | null | undefined) =>
+    (s ?? "").trim().replace(/\u00a0/g, " ").toLowerCase()
+  const isHome = norm(fixture.home_team_name) === norm(myTeamName)
 
   async function handleTrigger() {
     if (!oppId) return
@@ -291,7 +301,7 @@ function AnalysisPanel({
           <div className="text-sm text-neutral-400 mt-0.5">
             {formatDate(fixture.match_date)} · {fixture.match_type}
             {fixture.result && (
-              <span className="ml-2">{resultBadge(fixture.result)}</span>
+              <span className="ml-2">{resultBadge(fixture.result, isHome)}</span>
             )}
           </div>
         </div>
@@ -537,6 +547,7 @@ export default function FixturesClient({ fixtures, analysisMap, myPlayers, seaso
               const oppId = getOpponentId(f)
               const hasAnalysis = oppId ? !!analysisMap[oppId] : false
               const isSelected = selected?.match_id === f.match_id
+              const fIsHome = f.home_team_name?.trim().replace(/\u00a0/g, " ").toLowerCase() === myTeamName.trim().replace(/\u00a0/g, " ").toLowerCase()
 
               return (
                 <button
@@ -552,7 +563,7 @@ export default function FixturesClient({ fixtures, analysisMap, myPlayers, seaso
                     <span className="text-xs font-medium truncate">
                       {f.home_team_name} <span className="text-neutral-500">vs</span> {f.away_team_name}
                     </span>
-                    {f.result && resultBadge(f.result)}
+                    {f.result && resultBadge(f.result, fIsHome)}
                   </div>
                   <div className="flex items-center justify-between mt-0.5">
                     <span className="text-[10px] text-neutral-500">{formatDate(f.match_date)}</span>
@@ -577,6 +588,7 @@ export default function FixturesClient({ fixtures, analysisMap, myPlayers, seaso
                 season={season}
                 oppId={selectedOppId}
                 scoutingCoverage={scoutingCoverage}
+                myTeamName={myTeamName}
               />
             ) : (
               <div className="text-center py-12 text-neutral-500">
