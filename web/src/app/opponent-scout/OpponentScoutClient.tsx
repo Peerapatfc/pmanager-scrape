@@ -41,6 +41,7 @@ interface ATSettings {
   marking: "None" | "Zonal" | "Man to Man"
   long_shots: boolean
   first_time: boolean
+  notes?: string
 }
 
 const DEFAULT_AT_SETTINGS: ATSettings = {
@@ -352,6 +353,39 @@ function OpponentTacticsPanel({
     return { wins, partials, losses, recommended, avoid }
   }, [ourATResults])
 
+  const skillComparison = useMemo(() => {
+    type Group = "GK" | "D" | "M" | "F"
+    const GROUP_SKILLS: Record<Group, string[]> = {
+      GK: ["Reflexes", "Handling", "Agility", "Out of Area"],
+      D:  ["Tackling", "Positioning", "Speed", "Strength"],
+      M:  ["Passing", "Technique", "Speed", "Stamina"],
+      F:  ["Finishing", "Heading", "Technique", "Speed"],
+    }
+    const groups: Group[] = ["GK", "D", "M", "F"]
+    return groups.map(g => {
+      const myG = effectiveMyPlayers.filter(p => posG(p.position) === g)
+      const oppG = selectedOppPlayers.filter(p => posG(p.position) === g)
+      const skills = GROUP_SKILLS[g].map(s => ({
+        skill: s,
+        mine: avgSk(myG, s),
+        theirs: avgSk(oppG as unknown as MySquadPlayer[], s),
+      }))
+      return { group: g, skills, myCount: myG.length, oppCount: oppG.length }
+    }).filter(g => g.myCount > 0 || g.oppCount > 0)
+  }, [effectiveMyPlayers, selectedOppPlayers])
+
+  const threatPlayers = useMemo(() => {
+    const ATTACK_SKILLS = ["Finishing", "Technique", "Speed", "Heading", "Strength"]
+    return [...selectedOppPlayers]
+      .map(p => ({
+        ...p,
+        name: dbRows.find(r => r.player_id === p.id)?.player_name ?? p.id,
+        threatScore: ATTACK_SKILLS.reduce((s, k) => s + (p.skills[k] ?? 0), 0) / ATTACK_SKILLS.length,
+      }))
+      .sort((a, b) => b.threatScore - a.threatScore)
+      .slice(0, 3)
+  }, [selectedOppPlayers, dbRows])
+
   function togglePlayer(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -468,23 +502,32 @@ function OpponentTacticsPanel({
               </button>
             </span>
           ))}
-          <div className="flex items-center gap-1.5 ml-auto">
-            <input
-              type="text"
-              placeholder="Plan name…"
-              value={saveName}
-              onChange={e => setSaveName(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && savePlan()}
-              className="bg-neutral-950 border border-neutral-700 text-xs rounded px-2 py-1 text-neutral-200 outline-none focus:border-orange-500 w-28 transition-colors"
+          <div className="flex flex-col gap-1.5 ml-auto w-full sm:w-auto">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                placeholder="Plan name…"
+                value={saveName}
+                onChange={e => setSaveName(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && savePlan()}
+                className="bg-neutral-950 border border-neutral-700 text-xs rounded px-2 py-1 text-neutral-200 outline-none focus:border-orange-500 w-28 transition-colors"
+              />
+              <button
+                onClick={savePlan}
+                disabled={saving || !saveName.trim()}
+                className="flex items-center gap-1 px-2.5 py-1 bg-orange-500/20 border border-orange-500/40 text-orange-400 rounded-lg text-xs font-semibold hover:bg-orange-500/30 disabled:opacity-40 transition-colors"
+              >
+                {saving ? <Loader2 size={11} className="animate-spin" /> : <Bookmark size={11} />}
+                Save
+              </button>
+            </div>
+            <textarea
+              placeholder="Pre-match notes…"
+              value={atSettings.notes ?? ""}
+              onChange={e => { setAtSettings(prev => ({ ...prev, notes: e.target.value })); setActivePlanId(null) }}
+              rows={2}
+              className="bg-neutral-950 border border-neutral-700 text-xs rounded px-2 py-1 text-neutral-300 outline-none focus:border-orange-500 resize-none w-full transition-colors placeholder:text-neutral-600"
             />
-            <button
-              onClick={savePlan}
-              disabled={saving || !saveName.trim()}
-              className="flex items-center gap-1 px-2.5 py-1 bg-orange-500/20 border border-orange-500/40 text-orange-400 rounded-lg text-xs font-semibold hover:bg-orange-500/30 disabled:opacity-40 transition-colors"
-            >
-              {saving ? <Loader2 size={11} className="animate-spin" /> : <Bookmark size={11} />}
-              Save
-            </button>
           </div>
         </div>
 
@@ -628,6 +671,78 @@ function OpponentTacticsPanel({
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Threat Players ───────────────────────────────────────── */}
+        {threatPlayers.length > 0 && (
+          <div>
+            <div className="text-[10px] text-red-400/70 uppercase tracking-wider font-semibold mb-1.5">
+              Threat Players
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {threatPlayers.map((p, i) => (
+                <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 bg-neutral-900 border border-red-500/20 rounded-lg">
+                  <span className="text-[10px] font-bold text-red-500/60">#{i + 1}</span>
+                  <span className="text-xs font-medium text-neutral-200">{p.name}</span>
+                  <span className="text-[10px] font-mono text-neutral-500 bg-neutral-800 px-1.5 py-0.5 rounded">
+                    {(p.position ?? "?").replace(/\s+/g, "")}
+                  </span>
+                  <span className="text-[10px] font-bold text-red-400 font-mono">{p.threatScore.toFixed(1)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Skill Comparison by Line ─────────────────────────────── */}
+        {skillComparison.length > 0 && (
+          <div>
+            <div className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold mb-1.5">
+              Skill Comparison by Line
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              {skillComparison.map(({ group, skills, myCount, oppCount }) => (
+                <div key={group} className="bg-neutral-900 rounded-lg p-2.5 border border-neutral-800">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-neutral-300">{group}</span>
+                    <span className="text-[9px] text-neutral-600 font-mono">{myCount}v{oppCount}</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {skills.map(({ skill, mine, theirs }) => {
+                      const max = Math.max(mine, theirs, 1)
+                      const iWin = mine >= theirs
+                      return (
+                        <div key={skill}>
+                          <div className="flex justify-between text-[9px] mb-0.5">
+                            <span className="text-neutral-500">{skill}</span>
+                            <span className="font-mono">
+                              <span className={iWin ? "text-emerald-400" : "text-neutral-400"}>{mine.toFixed(0)}</span>
+                              <span className="text-neutral-700 mx-0.5">·</span>
+                              <span className={!iWin ? "text-red-400" : "text-neutral-500"}>{theirs.toFixed(0)}</span>
+                            </span>
+                          </div>
+                          <div className="flex gap-px h-1">
+                            <div className="flex-1 bg-neutral-800 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${iWin ? "bg-emerald-500" : "bg-neutral-500"}`}
+                                style={{ width: `${(mine / max) * 100}%` }}
+                              />
+                            </div>
+                            <div className="flex-1 bg-neutral-800 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ml-auto ${!iWin ? "bg-red-500" : "bg-neutral-600"}`}
+                                style={{ width: `${(theirs / max) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
