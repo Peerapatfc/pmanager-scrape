@@ -17,6 +17,9 @@ import {
   Play,
   CheckCircle2,
   Users,
+  Bookmark,
+  Trash2,
+  X,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -26,6 +29,58 @@ import type { OpponentScoutResult, Player } from "@/types";
 
 // ── AT Matchup types & helpers ────────────────────────────────────────────────
 interface MySquadPlayer { id: string; position: string; skills: Record<string, number> }
+
+interface ATSettings {
+  pressing: "None" | "High" | "Low"
+  offside_trap: boolean
+  counter_attack: boolean
+  high_balls: boolean
+  one_on_ones: boolean
+  keeping: "Normal" | "Stand In" | "Rush Out"
+  marking: "None" | "Zonal" | "Man to Man"
+  long_shots: boolean
+  first_time: boolean
+}
+
+const DEFAULT_AT_SETTINGS: ATSettings = {
+  pressing: "None",
+  offside_trap: false,
+  counter_attack: false,
+  high_balls: false,
+  one_on_ones: false,
+  keeping: "Normal",
+  marking: "None",
+  long_shots: false,
+  first_time: false,
+}
+
+interface OpponentPlan {
+  id: string
+  team_id: string
+  team_name: string | null
+  plan_name: string
+  player_ids: string[]
+  at_settings: ATSettings
+  saved_at: string
+}
+
+function isATEnabled(label: string, s: ATSettings): boolean {
+  switch (label) {
+    case "Pressing – High":    return s.pressing === "High"
+    case "Pressing – Low":     return s.pressing === "Low"
+    case "Counter Attack":     return s.counter_attack
+    case "Offside Trap":       return s.offside_trap
+    case "High Balls":         return s.high_balls
+    case "One on Ones":        return s.one_on_ones
+    case "Keeping – Stand In": return s.keeping === "Stand In"
+    case "Keeping – Rush Out": return s.keeping === "Rush Out"
+    case "Marking – Zonal":    return s.marking === "Zonal"
+    case "Marking – Man to Man": return s.marking === "Man to Man"
+    case "Long Shots":         return s.long_shots
+    case "First Time Shots":   return s.first_time
+    default: return false
+  }
+}
 
 function posG(pos: string | null | undefined): "GK" | "D" | "M" | "F" {
   const p = (pos ?? "").trim().toUpperCase();
@@ -142,55 +197,372 @@ function computeATMatchup(my: MySquadPlayer[], opp: Player[]): ATMatchup[] {
   return results;
 }
 
-function ATMatchupPanel({ my, opp, teamName }: { my: MySquadPlayer[]; opp: Player[]; teamName: string }) {
-  const matchups = useMemo(() => computeATMatchup(my, opp), [my, opp]);
-  const hasData = opp.some(p => Object.keys(p.skills ?? {}).length > 0);
+function ATResultRow({ label, mine, theirs, result, partial }: { label: string; mine: number | null; theirs: number | null; result: boolean | null; partial?: boolean }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-900 rounded text-xs">
+      <span className="text-neutral-400 w-36 shrink-0 text-[11px]">{label}</span>
+      {result === null ? (
+        <span className="text-neutral-600 italic text-[10px]">N/A</span>
+      ) : (
+        <>
+          <span className="font-mono text-[11px] text-neutral-300 w-8 text-right shrink-0">
+            {mine !== null ? mine.toFixed(1) : "—"}
+          </span>
+          <span className="text-neutral-600 text-[10px] shrink-0">vs</span>
+          <span className="font-mono text-[11px] text-neutral-500 w-8 shrink-0">
+            {theirs !== null ? theirs.toFixed(1) : "—"}
+          </span>
+          <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+            partial
+              ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/25"
+              : result
+              ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/25"
+              : "text-red-400 bg-red-500/10 border-red-500/25"
+          }`}>
+            {partial ? "~ Partial" : result ? "✓ Win" : "✗ Lose"}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function OpponentTacticsPanel({
+  teamId,
+  teamName,
+  dbRows,
+  playerDbMap,
+  mySquad,
+}: {
+  teamId: string
+  teamName: string
+  dbRows: OpponentScoutResult[]
+  playerDbMap: Map<string, Player>
+  mySquad: MySquadPlayer[]
+}) {
+  const availablePlayerIds = useMemo(
+    () => dbRows.map(r => r.player_id).filter(id => playerDbMap.has(id)),
+    [dbRows, playerDbMap]
+  )
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set(availablePlayerIds.slice(0, 11))
+  )
+  const [atSettings, setAtSettings] = useState<ATSettings>(DEFAULT_AT_SETTINGS)
+  const [plans, setPlans] = useState<OpponentPlan[]>([])
+  const [saveName, setSaveName] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [activePlanId, setActivePlanId] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/opponent-plans?team_id=${encodeURIComponent(teamId)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setPlans)
+      .catch(() => {})
+  }, [teamId])
+
+  const selectedOppPlayers = useMemo(() =>
+    dbRows
+      .filter(r => selectedIds.has(r.player_id) && playerDbMap.has(r.player_id))
+      .map(r => {
+        const p = playerDbMap.get(r.player_id)!
+        return { id: r.player_id, position: r.position ?? p.position ?? "M C", skills: p.skills ?? {} } as MySquadPlayer
+      }),
+    [selectedIds, dbRows, playerDbMap]
+  )
+
+  // Our ATs vs their lineup: my team attacks, they defend
+  const ourATResults = useMemo(() => computeATMatchup(mySquad, selectedOppPlayers as unknown as Player[]), [mySquad, selectedOppPlayers])
+  // Their ATs vs our defense: they attack, we defend
+  const theirATResults = useMemo(() => computeATMatchup(selectedOppPlayers as unknown as Player[], mySquad as unknown as Player[]), [selectedOppPlayers, mySquad])
+
+  function togglePlayer(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+    setActivePlanId(null)
+  }
+
+  function loadPlan(plan: OpponentPlan) {
+    setSelectedIds(new Set(plan.player_ids))
+    setAtSettings(plan.at_settings)
+    setActivePlanId(plan.id)
+    setSaveName(plan.plan_name)
+  }
+
+  async function savePlan() {
+    if (!saveName.trim()) return
+    setSaving(true)
+    try {
+      const res = await fetch("/api/opponent-plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          team_id: teamId,
+          team_name: teamName,
+          plan_name: saveName.trim(),
+          player_ids: Array.from(selectedIds),
+          at_settings: atSettings,
+        }),
+      })
+      if (res.ok) {
+        const newPlan: OpponentPlan = await res.json()
+        setPlans(prev => [newPlan, ...prev])
+        setActivePlanId(newPlan.id)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deletePlan(id: string) {
+    await fetch(`/api/opponent-plans/${id}`, { method: "DELETE" })
+    setPlans(prev => prev.filter(p => p.id !== id))
+    if (activePlanId === id) setActivePlanId(null)
+  }
+
+  const hasSkillData = selectedOppPlayers.some(p => Object.keys(p.skills).length > 0)
 
   return (
     <div className="mt-3 border border-neutral-700/50 rounded-xl overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2 bg-neutral-800/60 border-b border-neutral-700/50">
+      {/* Header */}
+      <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-neutral-800/60 border-b border-neutral-700/50">
         <Swords size={12} className="text-orange-400" />
         <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
-          AT Matchup vs {teamName}
+          Tactical Analysis vs {teamName}
         </span>
-        {my.length < 11 && (
-          <span className="ml-auto text-[9px] text-yellow-500/80 italic">Select starting 11 on Squad page for best accuracy</span>
+        {mySquad.length < 11 && (
+          <span className="text-[9px] text-yellow-500/80 italic">Set starting 11 on Squad page for best results</span>
         )}
-        {!hasData && (
-          <span className="ml-auto text-[9px] text-red-500/80 italic">Opponent skill data sparse — results may be inaccurate</span>
+        {!hasSkillData && selectedOppPlayers.length > 0 && (
+          <span className="text-[9px] text-red-500/80 italic">Opponent skill data sparse — results may be inaccurate</span>
         )}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-neutral-700/30 text-xs">
-        {matchups.map(({ label, mine, theirs, result, partial }) => (
-          <div key={label} className="flex items-center gap-2 px-4 py-2 bg-neutral-900">
-            <span className="text-neutral-400 w-36 shrink-0 text-[11px]">{label}</span>
-            {result === null ? (
-              <span className="text-neutral-600 italic text-[10px]">N/A</span>
-            ) : (
-              <>
-                <span className="font-mono text-[11px] text-neutral-300 w-8 text-right shrink-0">
-                  {mine !== null ? mine.toFixed(1) : "—"}
-                </span>
-                <span className="text-neutral-600 text-[10px] shrink-0">vs</span>
-                <span className="font-mono text-[11px] text-neutral-500 w-8 shrink-0">
-                  {theirs !== null ? theirs.toFixed(1) : "—"}
-                </span>
-                <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
-                  partial
-                    ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/25"
-                    : result
-                    ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/25"
-                    : "text-red-400 bg-red-500/10 border-red-500/25"
-                }`}>
-                  {partial ? "~ Partial" : result ? "✓ Win" : "✗ Lose"}
-                </span>
-              </>
+
+      <div className="p-4 space-y-4">
+
+        {/* ── Saved plans ──────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold shrink-0">Plans:</span>
+          {plans.length === 0 && (
+            <span className="text-[10px] text-neutral-600 italic">No saved plans yet</span>
+          )}
+          {plans.map(plan => (
+            <span
+              key={plan.id}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                activePlanId === plan.id
+                  ? "bg-orange-500/20 border-orange-500/40 text-orange-300"
+                  : "bg-neutral-800 border-neutral-700 text-neutral-400"
+              }`}
+            >
+              <button onClick={() => loadPlan(plan)} className="hover:text-orange-300 transition-colors">
+                {plan.plan_name}
+              </button>
+              <button
+                onClick={() => deletePlan(plan.id)}
+                className="text-neutral-600 hover:text-red-400 transition-colors ml-0.5"
+                aria-label={`Delete plan ${plan.plan_name}`}
+              >
+                <Trash2 size={10} />
+              </button>
+            </span>
+          ))}
+          <div className="flex items-center gap-1.5 ml-auto">
+            <input
+              type="text"
+              placeholder="Plan name…"
+              value={saveName}
+              onChange={e => setSaveName(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && savePlan()}
+              className="bg-neutral-950 border border-neutral-700 text-xs rounded px-2 py-1 text-neutral-200 outline-none focus:border-orange-500 w-28 transition-colors"
+            />
+            <button
+              onClick={savePlan}
+              disabled={saving || !saveName.trim()}
+              className="flex items-center gap-1 px-2.5 py-1 bg-orange-500/20 border border-orange-500/40 text-orange-400 rounded-lg text-xs font-semibold hover:bg-orange-500/30 disabled:opacity-40 transition-colors"
+            >
+              {saving ? <Loader2 size={11} className="animate-spin" /> : <Bookmark size={11} />}
+              Save
+            </button>
+          </div>
+        </div>
+
+        {/* ── Opponent lineup selection ─────────────────────────────── */}
+        <div>
+          <div className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold mb-2">
+            Opponent Lineup — {selectedIds.size} of {availablePlayerIds.length} selected (click to toggle)
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {availablePlayerIds.map(id => {
+              const row = dbRows.find(r => r.player_id === id)
+              const p = playerDbMap.get(id)
+              const selected = selectedIds.has(id)
+              const posCode = (row?.position ?? p?.position ?? "?").replace(/\s+/g, "")
+              return (
+                <button
+                  key={id}
+                  onClick={() => togglePlayer(id)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                    selected
+                      ? "bg-blue-500/15 border-blue-500/40 text-blue-200"
+                      : "bg-neutral-800 border-neutral-700 text-neutral-500 opacity-50 hover:opacity-70"
+                  }`}
+                >
+                  <span className="text-[9px] font-mono text-neutral-500 shrink-0">{posCode}</span>
+                  {row?.player_name ?? p?.name ?? id}
+                  {!selected && <X size={9} className="ml-0.5 shrink-0" />}
+                </button>
+              )
+            })}
+            {availablePlayerIds.length === 0 && (
+              <span className="text-[10px] text-neutral-600 italic">No players in DB for this team</span>
             )}
           </div>
-        ))}
+        </div>
+
+        {/* ── Opponent AT settings ──────────────────────────────────── */}
+        <div>
+          <div className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold mb-2">
+            Opponent AT Settings
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* Pressing select */}
+            <label className="flex items-center gap-1.5">
+              <span className="text-[10px] text-neutral-500">Pressing</span>
+              <select
+                value={atSettings.pressing}
+                onChange={e => { setAtSettings(prev => ({ ...prev, pressing: e.target.value as ATSettings["pressing"] })); setActivePlanId(null) }}
+                className="bg-neutral-900 border border-neutral-700 text-xs rounded px-2 py-1 text-neutral-300 outline-none focus:border-orange-500 transition-colors"
+              >
+                <option value="None">None</option>
+                <option value="High">High</option>
+                <option value="Low">Low</option>
+              </select>
+            </label>
+            {/* Keeping select */}
+            <label className="flex items-center gap-1.5">
+              <span className="text-[10px] text-neutral-500">Keeping</span>
+              <select
+                value={atSettings.keeping}
+                onChange={e => { setAtSettings(prev => ({ ...prev, keeping: e.target.value as ATSettings["keeping"] })); setActivePlanId(null) }}
+                className="bg-neutral-900 border border-neutral-700 text-xs rounded px-2 py-1 text-neutral-300 outline-none focus:border-orange-500 transition-colors"
+              >
+                <option value="Normal">Normal</option>
+                <option value="Stand In">Stand In</option>
+                <option value="Rush Out">Rush Out</option>
+              </select>
+            </label>
+            {/* Marking select */}
+            <label className="flex items-center gap-1.5">
+              <span className="text-[10px] text-neutral-500">Marking</span>
+              <select
+                value={atSettings.marking}
+                onChange={e => { setAtSettings(prev => ({ ...prev, marking: e.target.value as ATSettings["marking"] })); setActivePlanId(null) }}
+                className="bg-neutral-900 border border-neutral-700 text-xs rounded px-2 py-1 text-neutral-300 outline-none focus:border-orange-500 transition-colors"
+              >
+                <option value="None">None</option>
+                <option value="Zonal">Zonal</option>
+                <option value="Man to Man">Man to Man</option>
+              </select>
+            </label>
+            {/* Boolean toggles */}
+            {(
+              [
+                ["offside_trap",  "Offside Trap"],
+                ["counter_attack","Counter Attack"],
+                ["high_balls",    "High Balls"],
+                ["one_on_ones",   "One on Ones"],
+                ["long_shots",    "Long Shots"],
+                ["first_time",    "First Time Shots"],
+              ] as [keyof ATSettings, string][]
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => { setAtSettings(prev => ({ ...prev, [key]: !prev[key] })); setActivePlanId(null) }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                  atSettings[key]
+                    ? "bg-red-500/15 border-red-500/40 text-red-300"
+                    : "bg-neutral-800 border-neutral-700 text-neutral-500 hover:border-neutral-600"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── AT results (two columns) ──────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          {/* Our ATs */}
+          <div>
+            <div className="text-[10px] text-emerald-500/70 uppercase tracking-wider font-semibold mb-1.5">
+              Our Tactics vs Their Lineup
+            </div>
+            <div className="space-y-px">
+              {ourATResults.map(row => <ATResultRow key={row.label} {...row} />)}
+            </div>
+          </div>
+
+          {/* Their ATs — swap mine/theirs for readability: "their score vs our defense" */}
+          <div>
+            <div className="text-[10px] text-red-500/70 uppercase tracking-wider font-semibold mb-1.5">
+              Their Tactics — Can We Counter?
+            </div>
+            <div className="space-y-px">
+              {theirATResults.map(({ label, mine: theirScore, theirs: ourScore, result: theirWins, partial }) => {
+                const enabled = isATEnabled(label, atSettings)
+                // theirWins=true → they beat us; theirWins=false → we counter; partial → mixed
+                return (
+                  <div
+                    key={label}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs transition-opacity ${
+                      enabled ? "bg-neutral-900 opacity-100" : "bg-neutral-950/30 opacity-40"
+                    }`}
+                  >
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border mr-1 shrink-0 ${
+                      enabled
+                        ? "text-red-400 bg-red-500/10 border-red-500/25"
+                        : "text-neutral-600 bg-neutral-800 border-neutral-700"
+                    }`}>
+                      {enabled ? "ON" : "OFF"}
+                    </span>
+                    <span className="text-neutral-400 w-32 shrink-0 text-[11px]">{label}</span>
+                    {!enabled || theirWins === null ? (
+                      <span className="text-neutral-600 italic text-[10px]">—</span>
+                    ) : (
+                      <>
+                        <span className="font-mono text-[11px] text-neutral-500 w-8 text-right shrink-0">
+                          {theirScore !== null ? theirScore.toFixed(1) : "—"}
+                        </span>
+                        <span className="text-neutral-600 text-[10px] shrink-0">vs</span>
+                        <span className="font-mono text-[11px] text-neutral-300 w-8 shrink-0">
+                          {ourScore !== null ? ourScore.toFixed(1) : "—"}
+                        </span>
+                        <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                          partial
+                            ? "text-yellow-400 bg-yellow-500/10 border-yellow-500/25"
+                            : !theirWins
+                            ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/25"
+                            : "text-red-400 bg-red-500/10 border-red-500/25"
+                        }`}>
+                          {partial ? "~ Partial" : !theirWins ? "✓ Countered" : "✗ Beats Us"}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
-  );
+  )
 }
 
 export default function OpponentScoutClient() {
@@ -715,14 +1087,16 @@ export default function OpponentScoutClient() {
                       );
                     })}
 
-                    {/* AT Matchup panel */}
+                    {/* Tactical analysis panel */}
                     {atExpanded.has(teamId) && (
                       <tr className="bg-neutral-950/40">
                         <td colSpan={COL_COUNT} className="px-4 pb-4">
-                          <ATMatchupPanel
-                            my={mySquad}
-                            opp={dbRows.map(r => playerDbMap.get(r.player_id)).filter((p): p is Player => p !== undefined)}
+                          <OpponentTacticsPanel
+                            teamId={teamId}
                             teamName={teamName ?? `Team ${teamId}`}
+                            dbRows={dbRows}
+                            playerDbMap={playerDbMap}
+                            mySquad={mySquad}
                           />
                         </td>
                       </tr>
