@@ -266,6 +266,63 @@ function ATResultRow({ label, mine, theirs, result, partial, conditions }: ATMat
   );
 }
 
+function FormationVisual({
+  players,
+  dbRows,
+}: {
+  players: MySquadPlayer[]
+  dbRows: OpponentScoutResult[]
+}) {
+  const gk = players.filter(p => posG(p.position) === "GK")
+  const d  = players.filter(p => posG(p.position) === "D")
+  const m  = players.filter(p => posG(p.position) === "M")
+  const f  = players.filter(p => posG(p.position) === "F")
+  const formation = [d.length, m.length, f.length].filter(Boolean).join("-")
+
+  const getShortName = (id: string) => {
+    const name = dbRows.find(r => r.player_id === id)?.player_name
+    if (!name) return id.slice(-4)
+    const parts = name.trim().split(" ")
+    return parts.length > 1 ? parts[parts.length - 1] : parts[0]
+  }
+
+  const rows = [
+    { key: "f",  players: f,  dot: "bg-orange-500 border-orange-400",  text: "text-orange-300"  },
+    { key: "m",  players: m,  dot: "bg-blue-500 border-blue-400",      text: "text-blue-300"    },
+    { key: "d",  players: d,  dot: "bg-emerald-600 border-emerald-400",text: "text-emerald-300" },
+    { key: "gk", players: gk, dot: "bg-yellow-600 border-yellow-400",  text: "text-yellow-300"  },
+  ].filter(r => r.players.length > 0)
+
+  if (rows.length === 0) return null
+
+  return (
+    <div className="bg-emerald-950/15 border border-emerald-900/25 rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-emerald-900/20">
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-neutral-500">Formation</span>
+        {formation && <span className="text-sm font-bold text-emerald-400 font-mono">{formation}</span>}
+      </div>
+      <div className="p-4 space-y-4" style={{ background: "linear-gradient(180deg, rgba(20,83,45,0.12) 0%, rgba(20,83,45,0.05) 100%)" }}>
+        {rows.map(({ key, players: grp, dot, text }) => (
+          <div key={key} className="flex justify-center items-start gap-3 flex-wrap">
+            {grp.map(p => (
+              <div key={p.id} className="flex flex-col items-center gap-1">
+                <div className={`w-9 h-9 rounded-full border-2 ${dot} flex items-center justify-center`}>
+                  <span className="text-[9px] font-bold text-white leading-none text-center">
+                    {(p.position ?? "?").replace(/\s+/g, "").slice(0, 4)}
+                  </span>
+                </div>
+                <span className={`text-[9px] font-medium ${text} max-w-[56px] truncate text-center`}>
+                  {getShortName(p.id)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function OpponentTacticsPanel({
   teamId,
   teamName,
@@ -563,6 +620,11 @@ function OpponentTacticsPanel({
             )}
           </div>
         </div>
+
+        {/* ── Formation Visual ─────────────────────────────────────── */}
+        {selectedOppPlayers.length > 0 && (
+          <FormationVisual players={selectedOppPlayers as unknown as MySquadPlayer[]} dbRows={dbRows} />
+        )}
 
         {/* ── Opponent AT settings ──────────────────────────────────── */}
         <div>
