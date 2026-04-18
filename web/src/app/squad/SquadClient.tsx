@@ -96,6 +96,123 @@ interface TacticalMetric {
   compute: (players: SquadPlayer[]) => number | null;
 }
 
+// ── Anti-tactic: MY squad's rating at COUNTERING each opponent AT ─────────────
+// Source: PManager manual section 13.
+// Each formula mirrors the OPPONENT'S winning condition — the stat my squad
+// needs to be HIGH to deny the opponent that condition.
+//
+//   vs Offside Trap    → my F's Positioning + Speed   (beat the trap line)
+//   vs Pressing High   → all Speed + Passing           (deny both conditions)
+//   vs Pressing Low    → all Speed + Tackling          (deny both conditions)
+//   vs Counter Attack  → all Speed + Passing           (deny speed & passing)
+//   vs High Balls      → all Heading + Strength        (win aerial duels)
+//   vs One on Ones     → my D+M Tackling + Strength    (deny opp M+F tech+str)
+//   vs Keep Stand In   → my F's Heading + Finishing    (beat opp GK ref+han)
+//   vs Keep Rush Out   → my F's Heading + Technique    (beat opp GK agi+cross)
+//   vs Mark Zonal      → my M+F Positioning + Speed    (beat opp D+M spd+tck)
+//   vs Mark M-to-M     → my M+F Positioning + Strength (beat opp D+M str+tck)
+//   vs Long Shots      → my GK Agility + my D Positioning (both conditions)
+//   vs 1st Time Shots  → my GK Reflexes + my D Heading    (both conditions)
+
+const ANTI_TACTIC_METRICS: TacticalMetric[] = [
+  {
+    // Opp offside trap wins if their D: Positioning > my F: Positioning
+    //                                  their D: Speed     > my F: Speed
+    label: "vs Offside Trap",
+    compute: (all) => {
+      const fwds = all.filter((p) => posGroup(p.position) === "F");
+      return fwds.length ? avg(fwds.map((p) => (sk(p, "Positioning") + sk(p, "Speed")) / 2)) : null;
+    },
+  },
+  {
+    // Opp pressing-high wins if their Speed > mine AND their Passing > mine
+    label: "vs Pressing – High",
+    compute: (all) => avg(all.map((p) => (sk(p, "Speed") + sk(p, "Passing")) / 2)),
+  },
+  {
+    // Opp pressing-low wins if their Speed < mine AND their Tackling > mine
+    // → I need HIGH Speed (deny condition 1) + HIGH Tackling (deny condition 2)
+    label: "vs Pressing – Low",
+    compute: (all) => avg(all.map((p) => (sk(p, "Speed") + sk(p, "Tackling")) / 2)),
+  },
+  {
+    // Opp counter-attack wins if their Speed > mine (main) AND their Passing > mine
+    label: "vs Counter Attack",
+    compute: (all) => avg(all.map((p) => (sk(p, "Speed") + sk(p, "Passing")) / 2)),
+  },
+  {
+    // Opp high balls wins if their Heading > mine AND their Strength > mine
+    label: "vs High Balls",
+    compute: (all) => avg(all.map((p) => (sk(p, "Heading") + sk(p, "Strength")) / 2)),
+  },
+  {
+    // Opp one-on-ones wins if opp M+F (Technique + Strength) > my D+M (Tackling + Strength)
+    label: "vs One on Ones",
+    compute: (all) => {
+      const dm = all.filter((p) => ["D", "M"].includes(posGroup(p.position)));
+      return dm.length ? avg(dm.map((p) => (sk(p, "Tackling") + sk(p, "Strength")) / 2)) : null;
+    },
+  },
+  {
+    // Opp keep-stand-in wins if opp GK (Reflexes + Handling) > my F (Heading + Finishing)
+    // → I need my F to have HIGH Heading + HIGH Finishing
+    label: "vs Keeping – Stand In",
+    compute: (all) => {
+      const fwds = all.filter((p) => posGroup(p.position) === "F");
+      return fwds.length ? avg(fwds.map((p) => (sk(p, "Heading") + sk(p, "Finishing")) / 2)) : null;
+    },
+  },
+  {
+    // Opp keep-rush-out wins if opp GK (Agility + Crosses) > my F (Heading + Technique)
+    // → I need my F to have HIGH Heading + HIGH Technique
+    label: "vs Keeping – Rush Out",
+    compute: (all) => {
+      const fwds = all.filter((p) => posGroup(p.position) === "F");
+      return fwds.length ? avg(fwds.map((p) => (sk(p, "Heading") + sk(p, "Technique")) / 2)) : null;
+    },
+  },
+  {
+    // Opp zonal marking wins if opp D+M (Speed + Tackling) > my M+F (Positioning + Speed)
+    label: "vs Marking – Zonal",
+    compute: (all) => {
+      const mf = all.filter((p) => ["M", "F"].includes(posGroup(p.position)));
+      return mf.length ? avg(mf.map((p) => (sk(p, "Positioning") + sk(p, "Speed")) / 2)) : null;
+    },
+  },
+  {
+    // Opp man-to-man wins if opp D+M (Strength + Tackling) > my M+F (Positioning + Strength)
+    label: "vs Marking – Man to Man",
+    compute: (all) => {
+      const mf = all.filter((p) => ["M", "F"].includes(posGroup(p.position)));
+      return mf.length ? avg(mf.map((p) => (sk(p, "Positioning") + sk(p, "Strength")) / 2)) : null;
+    },
+  },
+  {
+    // Opp long shots wins if opp M+F (Finishing + Technique) > my GK Agility + my D Positioning
+    label: "vs Long Shots",
+    compute: (all) => {
+      const gks = all.filter((p) => posGroup(p.position) === "GK");
+      const defs = all.filter((p) => posGroup(p.position) === "D");
+      if (!gks.length || !defs.length) return null;
+      const gkAgi = avg(gks.map((p) => sk(p, "Agility")));
+      const dPos = avg(defs.map((p) => sk(p, "Positioning")));
+      return (gkAgi + dPos) / 2;
+    },
+  },
+  {
+    // Opp 1st-time shots wins if opp F (Finishing + Heading) > my GK Reflexes + my D Heading
+    label: "vs First Time Shots",
+    compute: (all) => {
+      const gks = all.filter((p) => posGroup(p.position) === "GK");
+      const defs = all.filter((p) => posGroup(p.position) === "D");
+      if (!gks.length || !defs.length) return null;
+      const gkRef = avg(gks.map((p) => sk(p, "Reflexes")));
+      const dHea = avg(defs.map((p) => sk(p, "Heading")));
+      return (gkRef + dHea) / 2;
+    },
+  },
+];
+
 const TACTICAL_METRICS: TacticalMetric[] = [
   { label: "Speed",           compute: (all) => avg(all.map((p) => sk(p, "Speed"))) },
   { label: "Strength",        compute: (all) => avg(all.map((p) => sk(p, "Strength"))) },
@@ -362,17 +479,27 @@ function LineupBuilder({
 
 // ── Tactical ratings panel ───────────────────────────────────────────────────
 
-function TacticalPanel({ players, fromLineup }: { players: SquadPlayer[]; fromLineup: boolean }) {
+function TacticalPanel({
+  players,
+  fromLineup,
+  title,
+  metrics: metricDefs,
+}: {
+  players: SquadPlayer[];
+  fromLineup: boolean;
+  title: string;
+  metrics: TacticalMetric[];
+}) {
   const metrics = useMemo(
-    () => TACTICAL_METRICS.map((m) => ({ label: m.label, value: m.compute(players) })),
-    [players]
+    () => metricDefs.map((m) => ({ label: m.label, value: m.compute(players) })),
+    [metricDefs, players]
   );
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
       <div className="flex items-center gap-3 mb-4">
         <h2 className="text-sm font-bold text-neutral-300 uppercase tracking-widest">
-          Advanced Tactics Ratings
+          {title}
         </h2>
         {fromLineup ? (
           <span className="text-[10px] bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded-full">
@@ -548,6 +675,16 @@ export default function SquadClient({ players }: { players: SquadPlayer[] }) {
 
       {/* Tactical Ratings — starting XI if complete, else full squad */}
       <TacticalPanel
+        title="Advanced Tactics Ratings"
+        metrics={TACTICAL_METRICS}
+        players={isLineupComplete ? startingEleven : players}
+        fromLineup={isLineupComplete}
+      />
+
+      {/* Anti-Tactic Ratings — counters to each opponent tactic */}
+      <TacticalPanel
+        title="Anti-Tactic Ratings"
+        metrics={ANTI_TACTIC_METRICS}
         players={isLineupComplete ? startingEleven : players}
         fromLineup={isLineupComplete}
       />
