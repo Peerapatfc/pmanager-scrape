@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Shield, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Shield, RefreshCw, Bookmark, Trash2, FolderOpen, Check, X } from "lucide-react";
 import { skillTier } from "@/lib/skillTier";
 import { SKILLS } from "@/lib/skills";
 import { SkillChip } from "@/lib/SkillChip";
@@ -543,6 +543,161 @@ function TacticalPanel({
   );
 }
 
+// ── Saved lineups types + panel ───────────────────────────────────────────────
+
+interface SavedLineup {
+  id: string;
+  name: string;
+  formation_idx: number;
+  lineup: (string | null)[];
+  saved_at: string;
+}
+
+function SavedLineupsPanel({
+  saves,
+  activeSaveId,
+  loading,
+  onLoad,
+  onDelete,
+  onSave,
+}: {
+  saves: SavedLineup[];
+  activeSaveId: string | null;
+  loading: boolean;
+  onLoad: (s: SavedLineup) => void;
+  onDelete: (id: string) => void;
+  onSave: (name: string) => Promise<void>;
+}) {
+  const [inputVisible, setInputVisible] = useState(false);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function openInput() {
+    setName(`Lineup ${saves.length + 1}`);
+    setInputVisible(true);
+    setTimeout(() => { inputRef.current?.focus(); inputRef.current?.select(); }, 0);
+  }
+
+  async function handleConfirm() {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setSaving(true);
+    await onSave(trimmed);
+    setSaving(false);
+    setInputVisible(false);
+    setName("");
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") handleConfirm();
+    if (e.key === "Escape") { setInputVisible(false); setName(""); }
+  }
+
+  return (
+    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h2 className="text-sm font-bold text-neutral-300 uppercase tracking-widest flex items-center gap-2">
+          <Bookmark size={13} className="text-amber-400" />
+          Saved Lineups
+          {saves.length > 0 && (
+            <span className="text-[10px] font-normal text-neutral-500">({saves.length})</span>
+          )}
+        </h2>
+
+        {inputVisible ? (
+          <div className="flex items-center gap-2">
+            <input
+              ref={inputRef}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Lineup name…"
+              className="bg-neutral-800 border border-indigo-500/60 text-neutral-100 text-xs px-3 py-1.5 rounded-lg focus:outline-none w-44"
+            />
+            <button
+              onClick={handleConfirm}
+              disabled={!name.trim() || saving}
+              className="p-1.5 rounded-lg bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/30 disabled:opacity-40 transition-colors"
+            >
+              <Check size={12} />
+            </button>
+            <button
+              onClick={() => { setInputVisible(false); setName(""); }}
+              className="p-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-neutral-500 hover:text-neutral-300 transition-colors"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={openInput}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-semibold hover:bg-indigo-500/20 transition-colors"
+          >
+            <Bookmark size={12} />
+            Save current lineup
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <p className="text-xs text-neutral-600 italic">Loading…</p>
+      ) : saves.length === 0 ? (
+        <p className="text-xs text-neutral-600 italic">No saved lineups yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {saves.map((s) => {
+            const isActive = s.id === activeSaveId;
+            const savedDate = new Date(s.saved_at).toLocaleString("en-GB", {
+              dateStyle: "short",
+              timeStyle: "short",
+            });
+            return (
+              <div
+                key={s.id}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors ${
+                  isActive
+                    ? "bg-indigo-900/20 border-indigo-500/40"
+                    : "bg-neutral-800/40 border-neutral-800 hover:border-neutral-700"
+                }`}
+              >
+                {isActive && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />}
+                <div className="flex-1 min-w-0">
+                  <span className={`text-xs font-semibold truncate block ${isActive ? "text-indigo-300" : "text-neutral-200"}`}>
+                    {s.name}
+                  </span>
+                  <span className="text-[10px] text-neutral-500">
+                    {FORMATIONS[s.formation_idx]?.name ?? "—"} · {savedDate}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {isActive ? (
+                    <span className="text-[10px] text-indigo-400 font-semibold px-2">Active</span>
+                  ) : (
+                    <button
+                      onClick={() => onLoad(s)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-700 border border-neutral-600 text-neutral-300 text-[10px] font-semibold hover:bg-neutral-600 transition-colors"
+                    >
+                      <FolderOpen size={11} />
+                      Load
+                    </button>
+                  )}
+                  <button
+                    onClick={() => onDelete(s.id)}
+                    className="p-1.5 rounded-lg text-neutral-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 type FilterTab = "All" | PosGroup;
@@ -553,6 +708,54 @@ export default function SquadClient({ players }: { players: SquadPlayer[] }) {
   const [lineup, setLineup] = useState<(string | null)[]>(Array(11).fill(null));
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  // ── Saved lineups state ──────────────────────────────────────────────────────
+  const [saves, setSaves] = useState<SavedLineup[]>([]);
+  const [activeSaveId, setActiveSaveId] = useState<string | null>(null);
+  const [savesLoading, setSavesLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/saved-lineups")
+      .then((r) => r.json())
+      .then((data: SavedLineup[]) => setSaves(Array.isArray(data) ? data : []))
+      .catch(() => setSaves([]))
+      .finally(() => setSavesLoading(false));
+  }, []);
+
+  async function handleSaveLineup(name: string) {
+    const res = await fetch("/api/saved-lineups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, formation_idx: formationIdx, lineup }),
+    });
+    if (!res.ok) return;
+    const saved: SavedLineup = await res.json();
+    setSaves((prev) => [saved, ...prev]);
+    setActiveSaveId(saved.id);
+  }
+
+  function handleLoadLineup(s: SavedLineup) {
+    setFormationIdx(s.formation_idx);
+    setLineup(s.lineup);
+    setActiveSaveId(s.id);
+  }
+
+  async function handleDeleteLineup(id: string) {
+    await fetch(`/api/saved-lineups/${id}`, { method: "DELETE" });
+    setSaves((prev) => prev.filter((s) => s.id !== id));
+    if (activeSaveId === id) setActiveSaveId(null);
+  }
+
+  // Clear active save when user manually changes the lineup/formation
+  function handleFormationChange(idx: number) {
+    setFormationIdx(idx);
+    setActiveSaveId(null);
+  }
+
+  function handleLineupChange(next: (string | null)[]) {
+    setLineup(next);
+    setActiveSaveId(null);
+  }
 
   async function handleSync() {
     setSyncing(true);
@@ -655,10 +858,20 @@ export default function SquadClient({ players }: { players: SquadPlayer[] }) {
       {/* Lineup Builder */}
       <LineupBuilder
         formationIdx={formationIdx}
-        onFormationChange={setFormationIdx}
+        onFormationChange={handleFormationChange}
         lineup={lineup}
-        onLineupChange={setLineup}
+        onLineupChange={handleLineupChange}
         players={players}
+      />
+
+      {/* Saved Lineups */}
+      <SavedLineupsPanel
+        saves={saves}
+        activeSaveId={activeSaveId}
+        loading={savesLoading}
+        onLoad={handleLoadLineup}
+        onDelete={handleDeleteLineup}
+        onSave={handleSaveLineup}
       />
 
       {/* Team Overview — always full squad */}
