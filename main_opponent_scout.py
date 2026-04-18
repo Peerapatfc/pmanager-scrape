@@ -101,6 +101,26 @@ def main() -> None:
         )
         logger.info("=" * 50)
 
+        # Scrape individual player profiles to get skill data first so it
+        # can be embedded directly in each opponent_scout_results row.
+        logger.info("Scraping skill profiles for %d opponent players…", len(opponent_players))
+        skill_map: dict[str, dict] = {}
+        for p in opponent_players:
+            pid = p["player_id"]
+            try:
+                skill_data = scraper.get_player_skills(pid, _BASE_URL)
+                numeric_skills = {
+                    k: v for k, v in skill_data.items()
+                    if k != "id" and isinstance(v, (int, float))
+                }
+                if numeric_skills:
+                    skill_map[pid] = numeric_skills
+                    logger.debug("Skills scraped for player %s: %d keys", pid, len(numeric_skills))
+            except Exception as e:
+                logger.warning("Failed to scrape skills for player %s: %s", pid, e)
+
+        logger.info("Scraped numeric skills for %d / %d players.", len(skill_map), len(opponent_players))
+
         scouted_at = datetime.now(timezone.utc).isoformat()
         results_to_save = []
         for p in opponent_players:
@@ -119,28 +139,12 @@ def main() -> None:
                 "player_link": f"{_BASE_URL}/ver_jogador.asp?jog_id={pid}",
                 "scouted_at": scouted_at,
                 "is_watchlist_match": is_match,
+                "skills": skill_map.get(pid, {}),
             })
 
         db.delete_opponent_scout_results_by_team(team_id)
         db.upsert_opponent_scout_results(results_to_save)
         logger.info("Saved %d players to opponent_scout_results.", len(results_to_save))
-
-        # Scrape individual player profiles to get skill data, then upsert
-        # into the players table so the AT matchup analysis has real numbers.
-        logger.info("Scraping skill profiles for %d opponent players…", len(opponent_players))
-        skill_records = []
-        for p in opponent_players:
-            pid = p["player_id"]
-            try:
-                skill_data = scraper.get_player_skills(pid, _BASE_URL)
-                if len(skill_data) > 1:  # more than just the id key
-                    skill_records.append(skill_data)
-            except Exception as e:
-                logger.warning("Failed to scrape skills for player %s: %s", pid, e)
-
-        if skill_records:
-            db.upsert_players(skill_records)
-            logger.info("Upserted skill data for %d players.", len(skill_records))
 
         logger.info("=" * 50)
 

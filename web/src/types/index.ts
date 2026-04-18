@@ -68,9 +68,12 @@ export interface OpponentScoutResult {
   team_name: string | null;
   player_name: string | null;
   position: string | null;
+  age?: number | null;
+  quality?: string | null;
   player_link: string | null;
   is_watchlist_match: boolean;
   scouted_at: string;
+  skills?: Record<string, number> | null;
 }
 
 /** The single team info snapshot from the `team_info` table (id=1). */

@@ -397,7 +397,12 @@ function OpponentTacticsPanel({
       .filter(r => selectedIds.has(r.player_id))
       .map(r => {
         const p = playerDbMap.get(r.player_id)
-        return { id: r.player_id, position: r.position ?? p?.position ?? "M C", skills: p?.skills ?? {} } as MySquadPlayer
+        // Prefer skills stored directly on the scout row (scraped at scout time).
+        // Fall back to playerDbMap for players already tracked in our DB.
+        const skills = (r.skills && Object.keys(r.skills).length > 0)
+          ? r.skills
+          : (p?.skills ?? {})
+        return { id: r.player_id, position: r.position ?? p?.position ?? "M C", skills } as MySquadPlayer
       }),
     [selectedIds, dbRows, playerDbMap]
   )
@@ -554,7 +559,7 @@ function OpponentTacticsPanel({
     if (activePlanId === id) setActivePlanId(null)
   }
 
-  const hasSkillData = selectedOppPlayers.some(p => Object.keys(p.skills).length > 0)
+  const hasSkillData = selectedOppPlayers.some(p => Object.keys(p.skills ?? {}).length > 0)
 
   return (
     <div className="mt-3 border border-neutral-700/50 rounded-xl overflow-hidden">
@@ -1399,10 +1404,10 @@ export default function OpponentScoutClient() {
               {rows.length > 0 && Array.from(groupedRows.entries()).map(([teamId, teamRows]) => {
                 const teamName = teamRows[0].team_name;
                 const scoutedAt = teamRows[0].scouted_at;
+                // All scouted players, for use in the tactics panel (skills embedded in row).
+                const allTeamRows = teamRows;
+                // Only players already in our DB, for the player table display.
                 const dbRows = teamRows.filter((r) => playerDbMap.has(r.player_id));
-
-                // Skip teams with no players in DB
-                if (dbRows.length === 0) return null;
 
                 return (
                   <Fragment key={teamId}>
@@ -1578,7 +1583,7 @@ export default function OpponentScoutClient() {
                           <OpponentTacticsPanel
                             teamId={teamId}
                             teamName={teamName ?? `Team ${teamId}`}
-                            dbRows={dbRows}
+                            dbRows={allTeamRows}
                             playerDbMap={playerDbMap}
                             mySquad={mySquad}
                           />
