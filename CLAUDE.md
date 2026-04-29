@@ -394,6 +394,8 @@ All data is fetched server-side in `page.tsx` files and passed to `*Client.tsx` 
 
 **AT matchup `result` field is ternary, not boolean:** `computeATMatchup()` returns `result: true | false | null` (null = no data) and `partial: boolean`. Never coerce to bool — `partial` rows display differently from wins/losses.
 
+**`config.validate()` requires Supabase creds:** Scripts that only scrape + send Telegram (no DB writes) must call `config.validate_telegram()` plus manually check `PM_USERNAME`/`PM_PASSWORD` instead. Never call `config.validate()` in a Supabase-free script.
+
 **`src/services/gsheets.py`:** A Google Sheets integration (`SheetManager`) exists but is not part of the main scraper pipeline. Not imported by any entry script — only used if Google Sheets export is needed. Omitted from the project structure above intentionally (optional / legacy).
 
 **ruff lint failures to watch for:**
