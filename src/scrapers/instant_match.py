@@ -40,11 +40,15 @@ class InstantMatchScraper(BaseScraper):
     def get_open_matches(self) -> list[InstantMatch]:
         """Navigate to pvp_geral.asp and return all joinable Pending games."""
         logger.info("Fetching instant match lobby...")
-        self.page.goto(_PVP_URL)
+        self.page.goto(_PVP_URL, wait_until="networkidle")
+
+        # pvp_geral.asp defaults to "PM Arena" tab. Must click "Matches" tab
+        # (ver_pagina(3,1)) to load #lista_jogos with open games.
+        self.page.click("div.menu_pvp:has-text('Matches')")
         try:
             self.page.wait_for_selector("#lista_jogos table", timeout=15000)
         except Exception:
-            logger.warning("Timed out waiting for match list — page may be empty.")
+            logger.warning("No match list found after clicking Matches tab.")
             return []
 
         html = self.page.content()
