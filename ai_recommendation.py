@@ -2,7 +2,7 @@
 AI recommendation alert entry point.
 
 Reads the current transfer market from Supabase, applies profit/budget/timing
-filters, and sends the top opportunities to Telegram.
+filters, and prints the top opportunities.
 
 Filter criteria (constants in :mod:`src.constants`):
 - Asking price ≤ :data:`~src.constants.MAX_BUDGET` AND ≤ available team funds
@@ -23,7 +23,6 @@ from src.config import config
 from src.core.logger import logger
 from src.core.utils import clean_currency, parse_deadline
 from src.services.supabase_client import SupabaseManager
-from src.services.telegram import TelegramBot
 
 
 def _filter_candidates(
@@ -142,14 +141,12 @@ def generate_message(
 
 
 def main() -> None:
-    """Fetch transfer data, filter top opportunities, and send Telegram alert."""
+    """Fetch transfer data, filter top opportunities, and print results."""
     config.validate()
-    config.validate_telegram()
 
     now_th = datetime.utcnow() + timedelta(hours=constants.UTC_OFFSET_HOURS)
 
     db = SupabaseManager()
-    bot = TelegramBot()
 
     transfer_data = db.get_all_transfer_listings()
     if not transfer_data:
@@ -175,22 +172,8 @@ def main() -> None:
         "Filter Summary: Passed=%d, Dropped=%s", len(candidates), dropped
     )
 
-    if not candidates:
-        debug_msg = (
-            f"📉 *Market Update* ({now_th.strftime('%H:%M ICT')})\n\n"
-            "No profitable flips found within budget right now.\n\n"
-            "*Filter Stats:*\n"
-            f"❌ Budget: {dropped['budget']}\n"
-            f"❌ No Profit: {dropped['profit']}\n"
-            f"❌ Time (>12h or Past): {dropped['time']}\n"
-            f"❌ Parse Error: {dropped['parse_error']}\n"
-            f"🔍 *Total Checked:* {len(transfer_data)}"
-        )
-        bot.send_message(debug_msg)
-    else:
-        msg = generate_message(candidates, funds_str, now_th)
-        logger.info("Sending Telegram notification...")
-        bot.send_message(msg)
+    msg = generate_message(candidates, funds_str, now_th)
+    logger.info("\n%s", msg)
 
 
 if __name__ == "__main__":
