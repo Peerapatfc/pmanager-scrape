@@ -32,7 +32,7 @@ import { FORMATIONS, slotToGroup } from "@/lib/formations";
 import type { OpponentScoutResult, Player, SavedLineup } from "@/types";
 
 // ── AT Matchup types & helpers ────────────────────────────────────────────────
-interface MySquadPlayer { id: string; position: string; skills: Record<string, number> }
+interface MySquadPlayer { id: string; name?: string; position: string; skills: Record<string, number> }
 
 interface ATSettings {
   pressing: "None" | "High" | "Low"
@@ -366,6 +366,8 @@ function OpponentTacticsPanel({
   // Our lineup selector
   const [savedLineups, setSavedLineups] = useState<SavedLineup[]>([])
   const [selectedLineupId, setSelectedLineupId] = useState<string>("")  // "" = full squad
+  const [mySlotOverrides, setMySlotOverrides] = useState<Record<number, string>>({})
+  const [showMyLineupEdit, setShowMyLineupEdit] = useState(false)
 
   useEffect(() => {
     fetch(`/api/opponent-plans?team_id=${encodeURIComponent(teamId)}`)
@@ -386,12 +388,13 @@ function OpponentTacticsPanel({
     const slots = FORMATIONS[saved.formation_idx]?.slots ?? []
     const squadMap = new Map(mySquad.map(p => [p.id, p]))
     return saved.lineup.flatMap((playerId, i) => {
-      if (!playerId) return []
-      const player = squadMap.get(playerId)
+      const effectiveId = mySlotOverrides[i] ?? playerId
+      if (!effectiveId) return []
+      const player = squadMap.get(effectiveId)
       if (!player) return []
       return [{ ...player, position: slotToGroup(slots[i] ?? "CM") }]
     })
-  }, [selectedLineupId, savedLineups, mySquad])
+  }, [selectedLineupId, savedLineups, mySquad, mySlotOverrides])
 
   const selectedOppPlayers = useMemo(() =>
     dbRows
@@ -594,25 +597,142 @@ function OpponentTacticsPanel({
       <div className="p-4 space-y-4">
 
         {/* ── Our lineup selector ───────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold shrink-0">Our Lineup:</span>
-          <select
-            value={selectedLineupId}
-            onChange={e => setSelectedLineupId(e.target.value)}
-            className="bg-neutral-900 border border-neutral-700 text-xs rounded px-2 py-1 text-neutral-300 outline-none focus:border-orange-500 transition-colors"
-          >
-            <option value="">Full Squad ({mySquad.length} players)</option>
-            {savedLineups.map(l => (
-              <option key={l.id} value={l.id}>
-                {l.name} — {FORMATIONS[l.formation_idx]?.name ?? `Formation ${l.formation_idx}`}
-              </option>
-            ))}
-          </select>
-          {selectedLineupId && (
-            <span className="text-[10px] text-emerald-500/70 italic">
-              {effectiveMyPlayers.length} players from saved lineup
-            </span>
-          )}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold shrink-0">Our Lineup:</span>
+            <select
+              value={selectedLineupId}
+              onChange={e => { setSelectedLineupId(e.target.value); setMySlotOverrides({}); setShowMyLineupEdit(false) }}
+              className="bg-neutral-900 border border-neutral-700 text-xs rounded px-2 py-1 text-neutral-300 outline-none focus:border-orange-500 transition-colors"
+            >
+              <option value="">Full Squad ({mySquad.length} players)</option>
+              {savedLineups.map(l => (
+                <option key={l.id} value={l.id}>
+                  {l.name} — {FORMATIONS[l.formation_idx]?.name ?? `Formation ${l.formation_idx}`}
+                </option>
+              ))}
+            </select>
+            {selectedLineupId && (
+              <>
+                <span className="text-[10px] text-emerald-500/70 italic">
+                  {effectiveMyPlayers.length} players from saved lineup
+                </span>
+                <button
+                  onClick={() => setShowMyLineupEdit(v => !v)}
+                  className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                    showMyLineupEdit
+                      ? "bg-orange-500/20 border-orange-500/40 text-orange-300"
+                      : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:text-neutral-200"
+                  }`}
+                >
+                  {showMyLineupEdit ? "▲ Close" : "✎ Edit Players"}
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* ── Inline slot editor ──────────────────────────────────── */}
+          {showMyLineupEdit && selectedLineupId && (() => {
+            const saved = savedLineups.find(l => l.id === selectedLineupId)
+            if (!saved) return null
+            const formation = FORMATIONS[saved.formation_idx]
+            if (!formation) return null
+            const slots = formation.slots
+            const squadMap = new Map(mySquad.map(p => [p.id, p]))
+            // Build slot entries grouped by position group
+            type PG = "GK" | "D" | "M" | "F"
+            const groups: Record<PG, { slotIdx: number; slotCode: string; effectiveId: string | null }[]> = { GK: [], D: [], M: [], F: [] }
+            slots.forEach((slotCode, i) => {
+              const g = slotToGroup(slotCode) as PG
+              const effectiveId = mySlotOverrides[i] ?? saved.lineup[i] ?? null
+              groups[g].push({ slotIdx: i, slotCode, effectiveId })
+            })
+            const groupOrder: PG[] = ["GK", "D", "M", "F"]
+            const groupColors: Record<PG, { badge: string; row: string }> = {
+              GK: { badge: "bg-yellow-600 text-white",   row: "border-yellow-900/30" },
+              D:  { badge: "bg-emerald-700 text-white",  row: "border-emerald-900/30" },
+              M:  { badge: "bg-blue-700 text-white",     row: "border-blue-900/30" },
+              F:  { badge: "bg-orange-600 text-white",   row: "border-orange-900/30" },
+            }
+            // Track all assigned slot IDs to disable them in other dropdowns
+            const allAssigned = new Map<string, number>() // playerId → slotIdx
+            slots.forEach((_, i) => {
+              const id = mySlotOverrides[i] ?? saved.lineup[i] ?? null
+              if (id) allAssigned.set(id, i)
+            })
+            return (
+              <div className="bg-neutral-900/60 border border-neutral-800 rounded-lg p-3 space-y-2">
+                {groupOrder.map(g => {
+                  const entries = groups[g]
+                  if (!entries.length) return null
+                  const { badge, row } = groupColors[g]
+                  return (
+                    <div key={g} className={`flex items-center gap-2 pb-2 border-b last:border-0 ${row}`}>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 w-7 text-center ${badge}`}>{g}</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {entries.map(({ slotIdx, slotCode, effectiveId }) => {
+                          const isOverridden = mySlotOverrides[slotIdx] != null
+                          return (
+                            <div key={slotIdx} className="flex items-center gap-1">
+                              <span className="text-[8px] text-neutral-600 font-mono">{slotCode}</span>
+                              <select
+                                value={effectiveId ?? ""}
+                                onChange={e => {
+                                  const val = e.target.value
+                                  setMySlotOverrides(prev => ({ ...prev, [slotIdx]: val }))
+                                }}
+                                className={`text-[10px] rounded px-1.5 py-0.5 outline-none border transition-colors max-w-[130px] ${
+                                  isOverridden
+                                    ? "bg-orange-500/10 border-orange-500/40 text-orange-200"
+                                    : "bg-neutral-800 border-neutral-700 text-neutral-300"
+                                }`}
+                              >
+                                <option value="">— empty —</option>
+                                {mySquad.map(p => {
+                                  const assignedSlot = allAssigned.get(p.id)
+                                  const occupiedElsewhere = assignedSlot != null && assignedSlot !== slotIdx
+                                  const displayName = p.name ?? p.id
+                                  return (
+                                    <option key={p.id} value={p.id} disabled={occupiedElsewhere}>
+                                      {occupiedElsewhere ? `✓ ${displayName}` : displayName}
+                                    </option>
+                                  )
+                                })}
+                              </select>
+                              {isOverridden && (
+                                <button
+                                  onClick={() => setMySlotOverrides(prev => {
+                                    const next = { ...prev }
+                                    delete next[slotIdx]
+                                    return next
+                                  })}
+                                  className="text-neutral-600 hover:text-neutral-300 transition-colors"
+                                  title="Reset to saved"
+                                >
+                                  <X size={9} />
+                                </button>
+                              )}
+                              {!isOverridden && effectiveId && squadMap.get(effectiveId) == null && (
+                                <span className="text-[9px] text-red-400">?</span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+                {Object.keys(mySlotOverrides).length > 0 && (
+                  <button
+                    onClick={() => setMySlotOverrides({})}
+                    className="text-[10px] text-neutral-500 hover:text-neutral-300 transition-colors"
+                  >
+                    Reset all changes
+                  </button>
+                )}
+              </div>
+            )
+          })()}
         </div>
 
         {/* ── Saved plans ──────────────────────────────────────────── */}
@@ -1082,13 +1202,14 @@ export default function OpponentScoutClient() {
       const ids = squadData.map((r: { player_id: string }) => r.player_id);
       const { data: playersData } = await supabase
         .from("players")
-        .select("id, skills")
+        .select("id, name, skills")
         .in("id", ids);
-      const map = new Map((playersData ?? []).map((p: { id: string; skills: Record<string, number> }) => [p.id, p.skills]));
+      const map = new Map((playersData ?? []).map((p: { id: string; name: string; skills: Record<string, number> }) => [p.id, p]));
       setMySquad(squadData.map((r: { player_id: string; position: string }) => ({
         id: r.player_id,
+        name: (map.get(r.player_id) as { name: string } | undefined)?.name ?? r.player_id,
         position: r.position,
-        skills: (map.get(r.player_id) as Record<string, number>) ?? {},
+        skills: (map.get(r.player_id) as { skills: Record<string, number> } | undefined)?.skills ?? {},
       })));
     }
     fetchMySquad();
