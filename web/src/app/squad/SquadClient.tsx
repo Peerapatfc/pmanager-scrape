@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Shield, RefreshCw, Bookmark, Trash2, FolderOpen, Check, X } from "lucide-react";
+import { Shield, RefreshCw, Bookmark, Trash2, FolderOpen, Check, X, Save } from "lucide-react";
 import { skillTier } from "@/lib/skillTier";
 import { SKILLS } from "@/lib/skills";
 import { SkillChip } from "@/lib/SkillChip";
@@ -324,12 +324,6 @@ function LineupBuilder({
     return POS_ORDER.map((g) => groups[g]).filter((g) => g.length > 0);
   }, [formation]);
 
-  // Players by position group for filtered dropdowns
-  const playersByGroup = useMemo(() => {
-    const map: Record<PosGroup, SquadPlayer[]> = { GK: [], D: [], M: [], F: [] };
-    players.forEach((p) => map[posGroup(p.position)].push(p));
-    return map;
-  }, [players]);
 
   const assignedIds = useMemo(
     () => new Set(lineup.filter((id): id is string => id !== null)),
@@ -386,7 +380,7 @@ function LineupBuilder({
           return (
             <div key={rowIdx} className="flex justify-center gap-2 flex-wrap">
               {row.map(({ index, tacPos }) => {
-                const compatible = playersByGroup[tacticToGroup(tacPos)];
+                const compatible = players;
                 const currentId = lineup[index];
                 const currentPlayer = currentId
                   ? players.find((p) => p.player_id === currentId)
@@ -528,6 +522,7 @@ function SavedLineupsPanel({
   onLoad,
   onDelete,
   onSave,
+  onUpdate,
 }: {
   saves: SavedLineup[];
   activeSaveId: string | null;
@@ -535,6 +530,7 @@ function SavedLineupsPanel({
   onLoad: (s: SavedLineup) => void;
   onDelete: (id: string) => void;
   onSave: (name: string) => Promise<void>;
+  onUpdate: (id: string) => Promise<void>;
 }) {
   const [inputVisible, setInputVisible] = useState(false);
   const [name, setName] = useState("");
@@ -651,6 +647,13 @@ function SavedLineupsPanel({
                     </button>
                   )}
                   <button
+                    onClick={() => onUpdate(s.id)}
+                    title="Overwrite with current lineup"
+                    className="p-1.5 rounded-lg text-neutral-600 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+                  >
+                    <Save size={11} />
+                  </button>
+                  <button
                     onClick={() => onDelete(s.id)}
                     className="p-1.5 rounded-lg text-neutral-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                   >
@@ -712,6 +715,18 @@ export default function SquadClient({ players }: { players: SquadPlayer[] }) {
     await fetch(`/api/saved-lineups/${id}`, { method: "DELETE" });
     setSaves((prev) => prev.filter((s) => s.id !== id));
     if (activeSaveId === id) setActiveSaveId(null);
+  }
+
+  async function handleUpdateLineup(id: string) {
+    const res = await fetch(`/api/saved-lineups/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ formation_idx: formationIdx, lineup }),
+    });
+    if (!res.ok) return;
+    const updated: SavedLineup = await res.json();
+    setSaves((prev) => prev.map((s) => (s.id === id ? updated : s)));
+    setActiveSaveId(id);
   }
 
   // Clear active save when user manually changes the lineup/formation
@@ -840,6 +855,7 @@ export default function SquadClient({ players }: { players: SquadPlayer[] }) {
         onLoad={handleLoadLineup}
         onDelete={handleDeleteLineup}
         onSave={handleSaveLineup}
+        onUpdate={handleUpdateLineup}
       />
 
       {/* Team Overview — always full squad */}

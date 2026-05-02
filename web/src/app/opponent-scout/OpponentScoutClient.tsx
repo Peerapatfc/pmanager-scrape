@@ -45,6 +45,7 @@ interface ATSettings {
   long_shots: boolean
   first_time: boolean
   notes?: string
+  position_overrides?: Record<string, string>
 }
 
 const DEFAULT_AT_SETTINGS: ATSettings = {
@@ -397,14 +398,15 @@ function OpponentTacticsPanel({
       .filter(r => selectedIds.has(r.player_id))
       .map(r => {
         const p = playerDbMap.get(r.player_id)
-        // Prefer skills stored directly on the scout row (scraped at scout time).
-        // Fall back to playerDbMap for players already tracked in our DB.
         const skills = (r.skills && Object.keys(r.skills).length > 0)
           ? r.skills
           : (p?.skills ?? {})
-        return { id: r.player_id, position: r.position ?? p?.position ?? "M C", skills } as MySquadPlayer
+        const override = atSettings.position_overrides?.[r.player_id]
+        const rawPos = r.position ?? p?.position ?? "M C"
+        const position = override ?? rawPos
+        return { id: r.player_id, position, skills } as MySquadPlayer
       }),
-    [selectedIds, dbRows, playerDbMap]
+    [selectedIds, dbRows, playerDbMap, atSettings.position_overrides]
   )
 
   // Our ATs vs their lineup: my team attacks, they defend
@@ -518,6 +520,18 @@ function OpponentTacticsPanel({
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
+    setActivePlanId(null)
+  }
+
+  function cyclePositionGroup(e: React.MouseEvent, id: string, rawPos: string) {
+    e.stopPropagation()
+    const order: Array<"GK" | "D" | "M" | "F"> = ["GK", "D", "M", "F"]
+    const current = (atSettings.position_overrides?.[id] as "GK" | "D" | "M" | "F") ?? posG(rawPos)
+    const next = order[(order.indexOf(current) + 1) % 4]
+    setAtSettings(prev => ({
+      ...prev,
+      position_overrides: { ...(prev.position_overrides ?? {}), [id]: next },
+    }))
     setActivePlanId(null)
   }
 
@@ -680,7 +694,17 @@ function OpponentTacticsPanel({
               const row = dbRows.find(r => r.player_id === id)
               const p = playerDbMap.get(id)
               const selected = selectedIds.has(id)
-              const posCode = (row?.position ?? p?.position ?? "?").replace(/\s+/g, "")
+              const rawPos = row?.position ?? p?.position ?? "?"
+              const posCode = rawPos.replace(/\s+/g, "")
+              const effectiveGroup = selected
+                ? ((atSettings.position_overrides?.[id] as "GK"|"D"|"M"|"F") ?? posG(rawPos))
+                : null
+              const groupColors: Record<string, string> = {
+                GK: "bg-yellow-500/20 text-yellow-300 border-yellow-500/40",
+                D:  "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
+                M:  "bg-blue-500/20 text-blue-300 border-blue-500/40",
+                F:  "bg-orange-500/20 text-orange-300 border-orange-500/40",
+              }
               return (
                 <button
                   key={id}
@@ -691,7 +715,17 @@ function OpponentTacticsPanel({
                       : "bg-neutral-800 border-neutral-700 text-neutral-500 opacity-50 hover:opacity-70"
                   }`}
                 >
-                  <span className="text-[9px] font-mono text-neutral-500 shrink-0">{posCode}</span>
+                  {selected && effectiveGroup ? (
+                    <span
+                      onClick={(e) => cyclePositionGroup(e, id, rawPos)}
+                      title="Click to change position group"
+                      className={`text-[9px] font-bold px-1 py-0.5 rounded border cursor-pointer shrink-0 transition-colors ${groupColors[effectiveGroup]}`}
+                    >
+                      {effectiveGroup}
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-mono text-neutral-500 shrink-0">{posCode}</span>
+                  )}
                   {row?.player_name ?? p?.name ?? id}
                   {!selected && <X size={9} className="ml-0.5 shrink-0" />}
                 </button>
