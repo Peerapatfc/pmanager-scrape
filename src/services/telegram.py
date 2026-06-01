@@ -22,49 +22,48 @@ class TelegramBot:
         self.bot_token: str | None = config.TELEGRAM_BOT_TOKEN
         self.chat_id: str | None = config.TELEGRAM_CHAT_ID
 
-    def send_message(self, message: str) -> bool:
+    def send_message(self, message: str, markdown: bool = True) -> bool:
         """Send a message to the configured Telegram chat.
 
-        Attempts Markdown formatting first. If the API rejects the message
-        (e.g. due to malformed Markdown), retries as plain text.
-
         Args:
-            message: Message body to send. May contain Telegram Markdown
-                syntax (``*bold*``, ``_italic_``, etc.).
+            message:  Message body to send.
+            markdown: If True, attempts Markdown formatting first and falls
+                      back to plain text on parse failure. If False, sends
+                      plain text directly (use when message contains paths or
+                      strings with unpaired underscores/asterisks).
 
         Returns:
-            ``True`` if the message was delivered successfully, ``False``
-            otherwise.
+            True if the message was delivered, False otherwise.
         """
         if not self.bot_token or not self.chat_id:
             logger.error("Telegram credentials not configured — message not sent.")
             return False
 
         api_url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-        payload = {
-            "chat_id": self.chat_id,
-            "text": message,
-            "parse_mode": "Markdown",
-        }
+        payload: dict = {"chat_id": self.chat_id, "text": message}
+
+        if markdown:
+            payload["parse_mode"] = "Markdown"
 
         try:
             response = requests.post(api_url, json=payload, timeout=_REQUEST_TIMEOUT)
             if response.status_code == 200:
-                logger.info("Telegram message sent (Markdown).")
+                logger.info("Telegram message sent (%s).", "Markdown" if markdown else "plain text")
                 return True
 
-            # Markdown failed — retry without parse_mode
-            logger.warning(
-                "Markdown send failed (%s). Retrying as plain text...",
-                response.text,
-            )
-            del payload["parse_mode"]
-            response = requests.post(api_url, json=payload, timeout=_REQUEST_TIMEOUT)
-            if response.status_code == 200:
-                logger.info("Telegram message sent (plain text).")
-                return True
+            if markdown:
+                # Markdown failed — retry as plain text
+                logger.warning(
+                    "Markdown send failed (%s). Retrying as plain text...",
+                    response.text,
+                )
+                del payload["parse_mode"]
+                response = requests.post(api_url, json=payload, timeout=_REQUEST_TIMEOUT)
+                if response.status_code == 200:
+                    logger.info("Telegram message sent (plain text).")
+                    return True
 
-            logger.error("Plain text send also failed: %s", response.text)
+            logger.error("Telegram send failed: %s", response.text)
             return False
 
         except Exception as e:

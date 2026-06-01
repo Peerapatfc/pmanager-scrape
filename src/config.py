@@ -35,6 +35,12 @@ class Config:
     GITHUB_TOKEN: str | None = os.getenv("GITHUB_TOKEN")
     GITHUB_REPO: str | None = os.getenv("GITHUB_REPO")
 
+    # Anthropic Claude API (unused — kept for reference)
+    ANTHROPIC_API_KEY: str | None = os.getenv("ANTHROPIC_API_KEY")
+
+    # Google Gemini API (for podcast script generation)
+    GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
+
     # Google Sheets (legacy, kept for backward compatibility)
     GOOGLE_CREDENTIALS_FILE: str = os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json")
     SPREADSHEET_ID: str | None = os.getenv("SPREADSHEET_ID")
@@ -66,6 +72,21 @@ class Config:
             for msg in errors:
                 print(f"[Config] ERROR: {msg}", file=sys.stderr)
             print("[Config] Set missing variables in your .env file.", file=sys.stderr)
+            sys.exit(1)
+
+    @classmethod
+    def validate_podcast(cls) -> None:
+        """Validate vars required by the podcast pipeline."""
+        errors: list[str] = []
+        if not cls.PM_USERNAME or not cls.PM_PASSWORD:
+            errors.append("PM_USERNAME and PM_PASSWORD are required")
+        if not cls.SUPABASE_URL or not cls.SUPABASE_KEY:
+            errors.append("SUPABASE_URL and SUPABASE_KEY are required")
+        if not cls.GEMINI_API_KEY:
+            errors.append("GEMINI_API_KEY is required for podcast script generation")
+        if errors:
+            for msg in errors:
+                print(f"[Config] ERROR: {msg}", file=sys.stderr)
             sys.exit(1)
 
     @classmethod

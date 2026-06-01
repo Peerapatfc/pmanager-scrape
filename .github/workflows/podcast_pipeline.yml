@@ -1,0 +1,69 @@
+name: Podcast Pipeline
+
+on:
+  schedule:
+    # Run after PManager match windows (section_33 of the game manual).
+    # League matches process on Wednesday and Saturday; cup matches vary.
+    # Each cron fires ~60 minutes after the typical match window closes to
+    # give the fixture sync time to record results first.
+    - cron: '30 23 * * 3'   # Wed 23:30 UTC — after league match window
+    - cron: '30 22 * * 6'   # Sat 22:30 UTC
+    - cron: '30 22 * * 0'   # Sun 22:30 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Skip Telegram alerts (dry run)'
+        required: false
+        default: 'false'
+
+jobs:
+  podcast:
+    name: Generate Podcast Scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
+
+      - name: Sync fixtures (get latest results before processing)
+        run: python main_fixtures_sync.py
+        env:
+          PM_USERNAME:    ${{ secrets.PM_USERNAME }}
+          PM_PASSWORD:    ${{ secrets.PM_PASSWORD }}
+          SUPABASE_URL:   ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:   ${{ secrets.SUPABASE_KEY }}
+          CURRENT_SEASON: ${{ secrets.CURRENT_SEASON }}
+
+      - name: Run podcast pipeline
+        run: python main_podcast_pipeline.py
+        env:
+          PM_USERNAME:        ${{ secrets.PM_USERNAME }}
+          PM_PASSWORD:        ${{ secrets.PM_PASSWORD }}
+          SUPABASE_URL:       ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:       ${{ secrets.SUPABASE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY:     ${{ secrets.GEMINI_API_KEY }}
+          CURRENT_SEASON:     ${{ secrets.CURRENT_SEASON }}
+
+      - name: Upload podcast output as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: podcast-output-${{ github.run_number }}
+          path: output/podcasts/
+          retention-days: 30
+          if-no-files-found: ignore

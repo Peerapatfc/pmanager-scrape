@@ -677,6 +677,155 @@ class SupabaseManager:
             return None
 
     # ------------------------------------------------------------------
+    # match_reports table
+    # ------------------------------------------------------------------
+
+    def upsert_match_report(self, data: dict) -> None:
+        """Upsert a post-match report row into match_reports."""
+        record = {k: self._to_native(v) for k, v in data.items()}
+        try:
+            self.client.table("match_reports").upsert(record).execute()
+            logger.info("Upserted match_report for match_id=%s", data.get("match_id"))
+        except Exception as exc:
+            logger.error("Failed to upsert match_report %s: %s", data.get("match_id"), exc)
+
+    def update_match_report(self, match_id: str, **fields) -> None:
+        """Update specific fields on a match_reports row."""
+        clean = {k: self._to_native(v) for k, v in fields.items()}
+        try:
+            self.client.table("match_reports").update(clean).eq("match_id", match_id).execute()
+        except Exception as exc:
+            logger.error("Failed to update match_report %s: %s", match_id, exc)
+
+    def get_match_report(self, match_id: str) -> dict | None:
+        """Fetch one match_reports row by match_id."""
+        try:
+            res = (
+                self.client.table("match_reports")
+                .select("*")
+                .eq("match_id", match_id)
+                .maybe_single()
+                .execute()
+            )
+            return res.data if res else None
+        except Exception as exc:
+            logger.error("Failed to fetch match_report %s: %s", match_id, exc)
+            return None
+
+    def get_pending_match_reports(self, lookback_days: int = 7) -> list[dict]:
+        """Return recently completed fixtures that have no generated podcast script.
+
+        Only looks back ``lookback_days`` days to avoid queuing all historical
+        matches on the first run.
+
+        Args:
+            lookback_days: How many days back to look for completed matches.
+        """
+        try:
+            cutoff = (
+                datetime.now(tz=timezone.utc) - timedelta(days=lookback_days)
+            ).isoformat()
+
+            # Completed fixtures within the lookback window
+            fixtures_resp = (
+                self.client.table("upcoming_fixtures")
+                .select("*")
+                .neq("result", "")
+                .gte("match_date", cutoff)
+                .order("match_date")
+                .execute()
+            )
+            all_fixtures = [f for f in (fixtures_resp.data or []) if f.get("result")]
+
+            if not all_fixtures:
+                return []
+
+            # Match IDs already processed (script generated)
+            done_resp = (
+                self.client.table("match_reports")
+                .select("match_id")
+                .not_.is_("script_generated_at", "null")
+                .execute()
+            )
+            done_ids = {r["match_id"] for r in (done_resp.data or [])}
+
+            pending = [f for f in all_fixtures if str(f["match_id"]) not in done_ids]
+            logger.info(
+                "Pending podcast matches: %d of %d completed fixtures",
+                len(pending), len(all_fixtures),
+            )
+            return pending
+        except Exception as exc:
+            logger.error("Failed to fetch pending match reports: %s", exc)
+            return []
+
+    def get_recent_league_match_reports(self, lookback_days: int = 7) -> list[dict]:
+        """Return match_reports from the last N days that have league_matchday_results.
+
+        Used to find other matches from the same league rounds (e.g. all 5 matches
+        in a round) that haven't been scripted yet.
+        """
+        try:
+            cutoff = (
+                datetime.now(tz=timezone.utc) - timedelta(days=lookback_days)
+            ).isoformat()
+            resp = (
+                self.client.table("match_reports")
+                .select("match_id, league_matchday_results, scraped_at")
+                .gte("scraped_at", cutoff)
+                .not_.is_("league_matchday_results", "null")
+                .execute()
+            )
+            return [r for r in (resp.data or []) if r.get("league_matchday_results")]
+        except Exception as exc:
+            logger.error("Failed to fetch recent league match reports: %s", exc)
+            return []
+
+    def get_fixture_by_match_id(self, match_id: str) -> dict | None:
+        """Fetch one upcoming_fixtures row by match_id."""
+        try:
+            res = (
+                self.client.table("upcoming_fixtures")
+                .select("*")
+                .eq("match_id", str(match_id))
+                .maybe_single()
+                .execute()
+            )
+            return res.data
+        except Exception as exc:
+            logger.error("Failed to fetch fixture %s: %s", match_id, exc)
+            return None
+
+    def get_next_fixture(self, after_date: str) -> dict | None:
+        """Return the earliest upcoming fixture after the given ISO date string."""
+        try:
+            res = (
+                self.client.table("upcoming_fixtures")
+                .select("*")
+                .gt("match_date", after_date)
+                .is_("result", "null")
+                .order("match_date")
+                .limit(1)
+                .execute()
+            )
+            if res.data:
+                return res.data[0]
+            # Also check empty result (no-score upcoming)
+            res2 = (
+                self.client.table("upcoming_fixtures")
+                .select("*")
+                .gt("match_date", after_date)
+                .eq("result", "")
+                .order("match_date")
+                .limit(1)
+                .execute()
+            )
+            return res2.data[0] if res2.data else None
+        except Exception as exc:
+            logger.error("Failed to fetch next fixture: %s", exc)
+            return None
+
+    # ------------------------------------------------------------------
     # players table — proxy lookup
     # ------------------------------------------------------------------
 
