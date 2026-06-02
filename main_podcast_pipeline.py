@@ -64,12 +64,14 @@ def _process_match(
 
     # Step 1 — skip scrape if match_reports row already exists (resume partial run)
     existing = sm.get_match_report(match_id)
+    screenshot_bytes: bytes | None = None
     if existing:
         logger.info("Match report already scraped for %s — skipping scrape", match_id)
         report = existing
     else:
         try:
             report = scraper.scrape(match_id, fixture)
+            screenshot_bytes = report.pop("_screenshot_bytes", None)
             sm.upsert_match_report(report)
         except Exception as exc:
             logger.error("Scrape failed for match %s: %s", match_id, exc)
@@ -102,13 +104,18 @@ def _process_match(
 
     source_path.write_text(source_doc, encoding="utf-8")
     script_path.write_text(script, encoding="utf-8")
+    if screenshot_bytes:
+        (out_dir / "match_report.png").write_bytes(screenshot_bytes)
+        logger.info("Saved match report screenshot to %s", out_dir / "match_report.png")
     logger.info("Saved output to %s", out_dir)
 
-    # Step 5 — update DB
+    # Step 5 — update DB (include full MD content for persistence)
     sm.update_match_report(
         match_id,
         podcast_path=str(out_dir),
         script_generated_at=datetime.now(tz=timezone.utc).isoformat(),
+        source_doc=source_doc,
+        podcast_script=script,
     )
 
     # Step 6 — Telegram alert
@@ -156,8 +163,15 @@ def _get_unprocessed_round_matches(
     # IDs already being handled as our own matches
     our_ids = {str(f["match_id"]) for f in pending}
 
-    # Recent match_reports that contain round data (league_matchday_results)
-    recent = sm.get_recent_league_match_reports(lookback_days=7)
+    # Recent match_reports that contain round data (league_matchday_results).
+    # Sort so pending matches come first — they were just scraped and have the
+    # correct round's calendar data. Non-pending parents scraped previously may
+    # contain stale global calendar data (always shows most-recent completed round),
+    # so their round match IDs are wrong. `seen` dedup ensures the pending parent
+    # wins by being processed first.
+    pending_ids = {str(f["match_id"]) for f in pending}
+    recent_raw = sm.get_recent_league_match_reports(lookback_days=7)
+    recent = sorted(recent_raw, key=lambda r: str(r.get("match_id", "")) not in pending_ids)
 
     # IDs already scripted — skip these
     seen: set[str] = set(our_ids)
@@ -166,12 +180,13 @@ def _get_unprocessed_round_matches(
     for parent in recent:
         league_results = parent.get("league_matchday_results") or []
 
-        # Use actual match_date from upcoming_fixtures; fall back to scraped_at date
+        # Use actual match_date and match_type from upcoming_fixtures
         parent_fixture = sm.get_fixture_by_match_id(str(parent.get("match_id", "")))
         match_date = (
             (parent_fixture or {}).get("match_date")
             or (parent.get("scraped_at") or "")[:10]
         )
+        match_type = (parent_fixture or {}).get("match_type") or "League"
 
         for r in league_results:
             mid = str(r.get("match_id") or "")
@@ -188,7 +203,7 @@ def _get_unprocessed_round_matches(
                 "home_team_name": r.get("home_team", "Home"),
                 "away_team_name": r.get("away_team", "Away"),
                 "result":         r.get("result", "?-?"),
-                "match_type":     "League",
+                "match_type":     match_type,
                 "match_date":     match_date,
                 "season":         config.CURRENT_SEASON,
                 "_round_results": league_results,
@@ -216,11 +231,13 @@ def _process_round_match(
     logger.info("Processing round match %s: %s %s %s", match_id, home, result, away)
 
     existing = sm.get_match_report(match_id)
+    screenshot_bytes: bytes | None = None
     if existing:
         logger.info("Round match report already scraped for %s — skipping scrape", match_id)
     else:
         try:
             report = scraper.scrape(match_id, fixture)
+            screenshot_bytes = report.pop("_screenshot_bytes", None)
             # Reuse pre-scraped round results to avoid re-scraping the calendar
             report["league_matchday_results"] = fixture.get("_round_results", [])
             sm.upsert_match_report(report)
@@ -248,12 +265,17 @@ def _process_round_match(
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "source_document.md").write_text(source_doc, encoding="utf-8")
     (out_dir / "podcast_script.md").write_text(script, encoding="utf-8")
+    if screenshot_bytes:
+        (out_dir / "match_report.png").write_bytes(screenshot_bytes)
+        logger.info("Saved match report screenshot to %s", out_dir / "match_report.png")
     logger.info("Saved round match output to %s", out_dir)
 
     sm.update_match_report(
         match_id,
         podcast_path=str(out_dir),
         script_generated_at=datetime.now(tz=timezone.utc).isoformat(),
+        source_doc=source_doc,
+        podcast_script=script,
     )
 
     if bot:

@@ -41,10 +41,20 @@ class MatchReportScraper(BaseScraper):
         url = f"{self.base_url}/relatorio.asp?jogo_id={match_id}"
         logger.info("Scraping match report: %s", url)
         self.page.goto(url, wait_until="domcontentloaded")
+
+        # Capture screenshot before navigating away (full page for all stats)
+        try:
+            screenshot_bytes = self.page.screenshot(full_page=True)
+        except Exception as exc:
+            logger.warning("Screenshot failed for match %s: %s", match_id, exc)
+            screenshot_bytes = None
+
         soup = BeautifulSoup(self.page.content(), "html.parser")
 
         report = self._parse_report(soup, match_id, fixture)
         report["league_matchday_results"] = self._scrape_matchday_context(fixture)
+        # Prefixed with _ — pipeline writes this to disk, never upserted to DB
+        report["_screenshot_bytes"] = screenshot_bytes
         return report
 
     # ------------------------------------------------------------------ #

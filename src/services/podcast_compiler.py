@@ -106,6 +106,7 @@ class PodcastCompiler:
             self._section_reaction(report, fixture, team_info),
             self._section_next_fixture(next_fixture, fixture_analysis),
             self._section_game_context(is_cup),
+            self._section_key_stats_summary(report, fixture),
         ]
 
         doc = "\n\n---\n\n".join(s for s in sections if s.strip())
@@ -335,6 +336,44 @@ class PodcastCompiler:
                 lines.append(f"- Opponent typically lines up: **{pred_f}**")
             if archetype:
                 lines.append(f"- Team archetype: **{archetype}**")
+
+        return "\n".join(lines)
+
+    def _section_key_stats_summary(self, report: dict, fixture: dict) -> str:
+        """Compact stats block — optimised for NotebookLM Slides extraction."""
+        home = fixture.get("home_team_name", "Home")
+        away = fixture.get("away_team_name", "Away")
+        hs   = report.get("home_score")
+        as_  = report.get("away_score")
+        score = f"{hs}-{as_}" if hs is not None and as_ is not None else fixture.get("result", "?")
+
+        lines = [
+            "## Key Stats Summary\n",
+            f"- **Final Score:** {home} {score} {away}",
+        ]
+
+        mom = report.get("man_of_match")
+        if mom:
+            lines.append(f"- **Man of the Match:** {mom}")
+
+        goals = report.get("goalscorers") or []
+        if goals:
+            goal_parts = []
+            for g in goals:
+                min_txt = f"{g['minute']}'" if g.get("minute") else ""
+                player  = g.get("player_name") or "?"
+                team    = g.get("team") or ""
+                goal_parts.append(f"{player} {min_txt} ({team})".strip())
+            lines.append(f"- **Goals:** {', '.join(goal_parts)}")
+
+        home_f = report.get("home_formation") or "?"
+        away_f = report.get("away_formation") or "?"
+        home_s = report.get("home_style") or "?"
+        away_s = report.get("away_style") or "?"
+        lines.append(f"- **Formations:** {home} {home_f} ({home_s}) | {away} {away_f} ({away_s})")
+
+        subs = report.get("substitutions") or []
+        lines.append(f"- **Substitutions:** {len(subs)}")
 
         return "\n".join(lines)
 
