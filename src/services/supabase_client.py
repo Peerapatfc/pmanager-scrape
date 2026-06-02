@@ -884,6 +884,94 @@ class SupabaseManager:
             return None
 
     # ------------------------------------------------------------------
+    # league_match_results table
+    # ------------------------------------------------------------------
+
+    def upsert_league_match_results(self, records: list[dict[str, Any]]) -> None:
+        """Upsert structured per-match results into league_match_results.
+
+        Args:
+            records: List of match dicts from match_doc_parser.parse_source_doc().
+        """
+        rows: list[dict[str, Any]] = []
+        for rec in records:
+            game_id = rec.get("game_id")
+            if not game_id:
+                logger.warning("Skipping match with no game_id: %s vs %s", rec.get("home_team"), rec.get("away_team"))
+                continue
+            row = {k: self._to_native(v) for k, v in rec.items()}
+            row["game_id"] = str(game_id)
+            rows.append(row)
+
+        if not rows:
+            return
+
+        self._upsert_batched("league_match_results", rows)
+        logger.info("Upserted %d rows to 'league_match_results'", len(rows))
+
+    def get_league_match_results_by_round(self, round_key: str) -> list[dict[str, Any]]:
+        """Fetch all match results for a given round_key.
+
+        Args:
+            round_key: Round identifier e.g. "2026-05-30___Rnd__12_Lg_".
+
+        Returns:
+            List of match row dicts, or an empty list on error.
+        """
+        try:
+            resp = (
+                self.client.table("league_match_results")
+                .select("*")
+                .eq("round_key", round_key)
+                .order("game_id")
+                .execute()
+            )
+            return resp.data or []
+        except Exception as e:
+            logger.error("Failed to fetch league_match_results for round %s: %s", round_key, e)
+            return []
+
+    def get_league_match_results_by_team(
+        self,
+        team_name: str,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Fetch recent matches involving a team (home or away).
+
+        Used for AT trend analysis.
+
+        Args:
+            team_name: Exact team name string.
+            limit: Maximum number of rows to return.
+
+        Returns:
+            List of match row dicts ordered by match_date descending.
+        """
+        try:
+            home_resp = (
+                self.client.table("league_match_results")
+                .select("*")
+                .eq("home_team", team_name)
+                .order("match_date", desc=True)
+                .limit(limit)
+                .execute()
+            )
+            away_resp = (
+                self.client.table("league_match_results")
+                .select("*")
+                .eq("away_team", team_name)
+                .order("match_date", desc=True)
+                .limit(limit)
+                .execute()
+            )
+            combined = (home_resp.data or []) + (away_resp.data or [])
+            combined.sort(key=lambda r: r.get("match_date") or "", reverse=True)
+            return combined[:limit]
+        except Exception as e:
+            logger.error("Failed to fetch league_match_results for team %s: %s", team_name, e)
+            return []
+
+    # ------------------------------------------------------------------
     # players table — proxy lookup
     # ------------------------------------------------------------------
 

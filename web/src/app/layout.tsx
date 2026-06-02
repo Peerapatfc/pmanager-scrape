@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import Link from 'next/link';
-import { LayoutDashboard, Users, ArrowRightLeft, Bot, Swords, Shield, CalendarDays, Mic, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, ArrowRightLeft, Bot, Swords, Shield, CalendarDays, Mic, LogOut, TrendingUp } from 'lucide-react';
 import { logout } from './login/actions';
 import './globals.css';
 
@@ -60,6 +60,10 @@ export default function RootLayout({
               <Mic size={20} />
               <span>Podcasts</span>
             </Link>
+            <Link href="/at-trends" className="flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-teal-400 hover:text-teal-300 hover:bg-teal-900/20">
+              <TrendingUp size={20} />
+              <span>AT Trends</span>
+            </Link>
           </nav>
           <div className="p-4 border-t border-neutral-800">
             <form action={logout}>
@@ -90,6 +94,7 @@ export default function RootLayout({
               <Link href="/squad" className="text-indigo-400 hover:text-indigo-300"><Shield size={20} /></Link>
               <Link href="/fixtures" className="text-rose-400 hover:text-rose-300"><CalendarDays size={20} /></Link>
               <Link href="/podcasts" className="text-amber-400 hover:text-amber-300"><Mic size={20} /></Link>
+              <Link href="/at-trends" className="text-teal-400 hover:text-teal-300"><TrendingUp size={20} /></Link>
               <form action={logout}>
                 <button type="submit" className="text-neutral-500 hover:text-neutral-300">
                   <LogOut size={20} />
