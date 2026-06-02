@@ -8,6 +8,7 @@ man of match, and matchday context from the global calendar.
 
 from __future__ import annotations
 
+import json
 import re
 
 from bs4 import BeautifulSoup
@@ -191,49 +192,64 @@ class MatchReportScraper(BaseScraper):
             txt = tag.get_text(separator=" ", strip=True)
             if len(txt) > len(best) and len(txt) > 200:
                 best = txt
+        # Strip the match-timeline minute-ticker ("Match Time: Match Start' 1' 2' 3' ...")
+        best = re.sub(r"Match Time:\s+Match Start'(?:\s+\d+')+", "", best).strip()
         return best
 
+    def _parse_goals_from_json(self, soup: BeautifulSoup) -> list[dict]:
+        """Extract goalscorers from the pm-match-report JSON blob embedded in page scripts."""
+        marker = '"pm-match-report",'
+        for script in soup.find_all("script"):
+            text = script.string or ""
+            if marker not in text:
+                continue
+            idx = text.index(marker) + len(marker)
+            while idx < len(text) and text[idx].isspace():
+                idx += 1
+            try:
+                data, _ = json.JSONDecoder().raw_decode(text, idx)
+            except (json.JSONDecodeError, ValueError):
+                return []
+
+            match    = data.get("match", {})
+            home_obj = match.get("homeTeam", {})
+            away_obj = match.get("awayTeam", {})
+            home_id  = home_obj.get("id")
+            away_id  = away_obj.get("id")
+            home_nm  = home_obj.get("name", "")
+            away_nm  = away_obj.get("name", "")
+
+            player_map: dict[int, str] = {}
+            for side in ("homeFormation", "awayFormation"):
+                for p in match.get(side, {}).get("startingEleven", []):
+                    player_map[p["playerId"]] = p["playerName"]
+                for p in match.get(side, {}).get("substitutions", []):
+                    player_map[p["playerId"]] = p["playerName"]
+
+            goals = []
+            for ev in match.get("events", []):
+                if ev.get("typeId") != 7:
+                    continue
+                goals.append({
+                    "team":        home_nm if ev.get("teamId") == home_id else away_nm,
+                    "player_name": player_map.get(ev["playerId"], str(ev["playerId"])),
+                    "minute":      ev.get("timeInMinutes"),
+                })
+            return goals
+
+        return []
+
     def _parse_goals(self, soup: BeautifulSoup, commentary: str) -> list[dict]:
-        """Extract goalscorer events from the events table or commentary."""
-        goals: list[dict] = []
-
-        # Strategy 1: events/goals table — look for table containing "Goal" or minute patterns
-        for table in soup.find_all("table"):
-            txt = table.get_text(separator=" ", strip=True)
-            if "goal" in txt.lower() or re.search(r"\b\d{1,3}['\"]\b", txt):
-                rows = table.find_all("tr")
-                for row in rows[1:]:
-                    cells = row.find_all("td")
-                    if len(cells) < 2:
-                        continue
-                    row_txt = row.get_text(separator=" ", strip=True).lower()
-                    if "goal" in row_txt or "scored" in row_txt or "golo" in row_txt:
-                        # Try to extract: minute, player, team
-                        minute_m = re.search(r"(\d{1,3})['\"]", row.get_text())
-                        minute = int(minute_m.group(1)) if minute_m else None
-                        # Player name: first non-minute cell text
-                        player_name = None
-                        team_name = None
-                        for cell in cells:
-                            ct = cell.get_text(separator=" ", strip=True)
-                            if ct and not re.fullmatch(r"\d{1,3}['\"]?", ct):
-                                if not player_name:
-                                    player_name = ct
-                                elif not team_name:
-                                    team_name = ct
-                                    break
-                        if player_name:
-                            goals.append({
-                                "team":        team_name or "",
-                                "player_name": player_name,
-                                "minute":      minute,
-                            })
-
+        """Extract goalscorer events — primary: JSON blob; fallback: commentary."""
+        # Strategy 0: JSON blob (most reliable — avoids false matches on stats rows)
+        goals = self._parse_goals_from_json(soup)
         if goals:
             return goals
 
-        # Strategy 2: parse commentary for goal sentences
-        # Patterns: "Xth min: [Name] scores", "Goal for [Team]!", "[Name] scored"
+        # Strategy 1 (original table scanning) was unreliable — it matched stats
+        # rows ("Shots on Goal", "Goalkeeper") as goal events. Skipped.
+
+        # Strategy 2: parse commentary for scorer patterns
         patterns = [
             r"(\d{1,3})['\"]?\s*[\:\-]?\s*([A-Z][a-zA-Z\s\-\.]+?)\s+(?:scored?|goal|golo)",
             r"goal\s+for\s+([A-Z][a-zA-Z\s]+)[\.\!]?\s+([A-Z][a-zA-Z\s\-\.]+)",

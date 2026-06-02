@@ -226,8 +226,9 @@ def _process_round(
     compiler: RoundCompiler,
     generator: PodcastGenerator,
     bot: TelegramBot | None,
+    source_only: bool = False,
 ) -> bool:
-    """Compile + generate + save one round. Returns True on success."""
+    """Compile + (optionally) generate + save one round. Returns True on success."""
     rkey        = round_meta["round_key"]
     competition = round_meta["competition"]
     date        = round_meta["date"]
@@ -235,9 +236,9 @@ def _process_round(
 
     logger.info("Processing round %s (%d matches)", rkey, len(summaries))
 
-    # Skip if round already scripted
+    # Skip if round already scripted (unless source_only — allow re-compiling source doc)
     existing = sm.get_round_report(rkey)
-    if existing and existing.get("generated_at"):
+    if not source_only and existing and existing.get("generated_at"):
         logger.info("Round %s already scripted — skipping", rkey)
         return True
 
@@ -249,7 +250,25 @@ def _process_round(
         _alert_failure(bot, f"Compile failed for {competition} {date}: {exc}")
         return False
 
-    # Generate
+    # Save files to round folder
+    out_dir = _round_output_dir(date, competition)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "source_document.md").write_text(source_doc, encoding="utf-8")
+    logger.info("Saved source document to %s", out_dir)
+
+    if source_only:
+        # Upsert source_doc only — leave podcast_script untouched
+        sm.upsert_round_report({
+            "round_key":       rkey,
+            "date":            date,
+            "competition":     competition,
+            "match_summaries": summaries,
+            "source_doc":      source_doc,
+        })
+        logger.info("Round %s source doc saved (script generation skipped)", rkey)
+        return True
+
+    # Generate podcast script via Gemini
     try:
         script = generator.generate(source_doc)
     except Exception as exc:
@@ -257,14 +276,8 @@ def _process_round(
         _alert_failure(bot, f"Gemini API failed for {competition} {date}: {exc}")
         return False
 
-    # Save files to round folder
-    out_dir = _round_output_dir(date, competition)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "source_document.md").write_text(source_doc, encoding="utf-8")
     (out_dir / "podcast_script.md").write_text(script, encoding="utf-8")
-    logger.info("Saved round output to %s", out_dir)
 
-    # Upsert round_reports
     sm.upsert_round_report({
         "round_key":       rkey,
         "date":            date,
@@ -275,14 +288,12 @@ def _process_round(
         "generated_at":    datetime.now(tz=timezone.utc).isoformat(),
     })
 
-    # Mark all match_reports as scripted
     for s in summaries:
         sm.update_match_report(
             str(s["match_id"]),
             script_generated_at=datetime.now(tz=timezone.utc).isoformat(),
         )
 
-    # Telegram alert
     if bot:
         results_txt = "\n".join(
             f"  {s['home']} {s['result']} {s['away']}" for s in summaries
@@ -304,6 +315,15 @@ def _process_round(
 # ------------------------------------------------------------------ #
 
 def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="Podcast pipeline")
+    parser.add_argument(
+        "--source-only",
+        action="store_true",
+        help="Compile source documents only — skip Gemini script generation",
+    )
+    args = parser.parse_args()
+
     config.validate_podcast()
 
     sm       = SupabaseManager()
@@ -357,7 +377,7 @@ def main() -> None:
     fail_count    = failed_scrape
 
     for round_meta in rounds:
-        ok = _process_round(round_meta, sm, compiler, gen, bot)
+        ok = _process_round(round_meta, sm, compiler, gen, bot, source_only=args.source_only)
         if ok:
             success_count += 1
         else:
