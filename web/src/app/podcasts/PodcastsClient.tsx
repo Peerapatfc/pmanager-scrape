@@ -1,8 +1,104 @@
 "use client"
 
 import { useState } from "react"
-import { Mic, Copy, Download, X, FileText, Radio, ChevronDown, ChevronRight } from "lucide-react"
+import { Mic, Copy, Download, X, FileText, Radio, ChevronDown, ChevronRight, Sparkles } from "lucide-react"
 import type { RoundRow } from "./page"
+
+const NLM_PROMPTS = {
+  audio: {
+    label: "Audio Overview",
+    prompt: `มุ่งเน้นการวิเคราะห์แมตช์ไทยลีกในรูปแบบพอดแคสต์วิเคราะห์ฟุตบอล
+
+สไตล์: พูดคุยเหมือนนักวิเคราะห์ฟุตบอลมืออาชีพ 2 คน ไม่ใช่การอ่านรายงาน
+
+ครอบคลุมประเด็นต่อไปนี้:
+1. ผลการแข่งขันที่น่าสนใจและเซอร์ไพรส์ที่สุดของรอบ
+2. วิเคราะห์ยุทธวิธี — formation และ AT settings ที่ทีมเลือกใช้ ได้ผลหรือไม่
+3. ผู้เล่นที่โดดเด่นและ Man of the Match แต่ละเกม
+4. แนวโน้ม AT ที่ทีมต่าง ๆ มักใช้ เช่น Pressing / Marking / Counter Attack
+5. ผลกระทบต่อตารางคะแนนและการแข่งขันในรอบถัดไป
+
+ห้ามอ่านสถิติแบบแห้งๆ ให้แปลงตัวเลขเป็นการวิจารณ์เชิงลึกแทน
+ใช้ภาษาไทยตลอด พูดสนุกและมีความคิดเห็น ไม่กลางๆ`,
+  },
+  slides: {
+    label: "Slide Deck",
+    prompt: `สร้างสไลด์สรุปแมตช์เดย์ไทยลีก สำหรับแชร์ให้เพื่อนในลีกดู
+
+โครงสร้างสไลด์:
+1. หน้าปก — ชื่อรอบ วันที่ จำนวนแมตช์
+2. ผลการแข่งขันทุกคู่ — สกอร์ + ทีมชนะเด่น
+3. ไฮไลต์ยุทธวิธี — formation ที่ทีมส่วนใหญ่ใช้ + AT flags ที่น่าสนใจ
+4. Man of the Match แต่ละเกม พร้อมเหตุผลสั้น ๆ
+5. สถิติน่าสนใจ — สกอร์สูงสุด, upset ที่สุด
+6. มองไปข้างหน้า — คู่น่าติดตามในรอบถัดไป
+
+สไตล์: กระชับ อ่านง่าย แต่ละสไลด์ไม่เกิน 5 bullet
+ใช้ภาษาไทย เน้นข้อมูลจาก source doc เท่านั้น ห้ามแต่งเพิ่ม`,
+  },
+} as const
+
+type NLMTab = keyof typeof NLM_PROMPTS
+
+function NotebookLMCard() {
+  const [open, setOpen]     = useState(false)
+  const [tab, setTab]       = useState<NLMTab>("audio")
+  const [copied, setCopied] = useState(false)
+
+  function handleCopy() {
+    navigator.clipboard.writeText(NLM_PROMPTS[tab].prompt).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="border border-violet-400/20 rounded-xl overflow-hidden bg-violet-400/5">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-violet-400/5 transition-colors"
+      >
+        <Sparkles size={16} className="text-violet-400 shrink-0" />
+        <span className="text-sm font-medium text-violet-300">NotebookLM Prompts</span>
+        <span className="text-xs text-neutral-600 ml-1">— copy &amp; paste into NotebookLM</span>
+        <div className="flex-1" />
+        {open ? <ChevronDown size={14} className="text-neutral-500" /> : <ChevronRight size={14} className="text-neutral-500" />}
+      </button>
+
+      {open && (
+        <div className="border-t border-violet-400/10 px-4 pb-4 pt-3 space-y-3">
+          {/* Tabs */}
+          <div className="flex gap-1">
+            {(Object.keys(NLM_PROMPTS) as NLMTab[]).map((key) => (
+              <button
+                key={key}
+                onClick={() => { setTab(key); setCopied(false) }}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  tab === key
+                    ? "bg-violet-400/20 text-violet-300"
+                    : "text-neutral-500 hover:text-neutral-300 hover:bg-white/5"
+                }`}
+              >
+                {NLM_PROMPTS[key].label}
+              </button>
+            ))}
+          </div>
+
+          <pre className="whitespace-pre-wrap text-sm text-neutral-300 font-mono leading-relaxed bg-black/30 rounded-lg p-3">
+            {NLM_PROMPTS[tab].prompt}
+          </pre>
+
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-violet-400/10 hover:bg-violet-400/20 text-violet-300 hover:text-violet-200 transition-colors"
+          >
+            <Copy size={13} />
+            {copied ? "Copied!" : `Copy ${NLM_PROMPTS[tab].label} Prompt`}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 type ContentTab = "script" | "source"
 
@@ -105,6 +201,8 @@ export default function PodcastsClient({ rounds }: { rounds: RoundRow[] }) {
           </p>
         </div>
       </div>
+
+      <NotebookLMCard />
 
       <div className="flex gap-6 items-start">
         {/* Round list */}
