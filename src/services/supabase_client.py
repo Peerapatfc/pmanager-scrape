@@ -791,7 +791,7 @@ class SupabaseManager:
                 .maybe_single()
                 .execute()
             )
-            return res.data
+            return res.data if res else None
         except Exception as exc:
             logger.error("Failed to fetch fixture %s: %s", match_id, exc)
             return None
