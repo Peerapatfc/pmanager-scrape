@@ -3,29 +3,35 @@ import PodcastsClient from "./PodcastsClient"
 
 export const revalidate = 60
 
-export type PodcastRow = {
+export type MatchSummary = {
   match_id: string
-  podcast_path: string | null
-  home_score: number | null
-  away_score: number | null
-  script_generated_at: string | null
+  home: string
+  away: string
+  result: string
 }
 
-async function getPodcasts(): Promise<PodcastRow[]> {
+export type RoundRow = {
+  round_key: string
+  date: string
+  competition: string
+  match_summaries: MatchSummary[]
+  generated_at: string
+}
+
+async function getRounds(): Promise<RoundRow[]> {
   const { data, error } = await supabase
-    .from("match_reports")
-    .select("match_id, podcast_path, home_score, away_score, script_generated_at")
-    .not("script_generated_at", "is", null)
-    .order("script_generated_at", { ascending: false })
+    .from("round_reports")
+    .select("round_key, date, competition, match_summaries, generated_at")
+    .order("date", { ascending: false })
 
   if (error) {
-    console.error("Failed to fetch match_reports:", error.message)
+    console.error("Failed to fetch round_reports:", error.message)
     return []
   }
-  return (data ?? []) as PodcastRow[]
+  return (data ?? []) as RoundRow[]
 }
 
 export default async function PodcastsPage() {
-  const podcasts = await getPodcasts()
-  return <PodcastsClient podcasts={podcasts} />
+  const rounds = await getRounds()
+  return <PodcastsClient rounds={rounds} />
 }

@@ -12,11 +12,11 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ match_id: string }> },
 ) {
-  const { match_id } = await params
+  const { match_id: roundKey } = await params
   const { data, error } = await db()
-    .from("match_reports")
+    .from("round_reports")
     .select("source_doc, podcast_script")
-    .eq("match_id", match_id)
+    .eq("round_key", decodeURIComponent(roundKey))
     .single()
 
   if (error || !data) {

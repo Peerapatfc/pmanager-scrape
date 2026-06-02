@@ -399,3 +399,145 @@ class PodcastCompiler:
                 lines.append("")
 
         return "\n".join(lines)
+
+
+class RoundCompiler:
+    """Compiles a single source document covering all matches in one round."""
+
+    def __init__(self, sm: Any) -> None:
+        self.sm = sm
+
+    def compile(self, round_meta: dict) -> str:
+        """Build a combined Markdown source document for all matches in a round.
+
+        Args:
+            round_meta: Dict with keys:
+                - competition (str)
+                - date (str, YYYY-MM-DD)
+                - match_summaries (list of {match_id, home, away, result})
+        """
+        competition = round_meta.get("competition", "League")
+        date        = round_meta.get("date", "")
+        summaries   = round_meta.get("match_summaries", [])
+        is_cup      = any(kw in competition.lower() for kw in _CUP_KEYWORDS)
+
+        # Fetch all match reports
+        reports: list[tuple[dict, dict]] = []  # (summary, report)
+        for s in summaries:
+            r = self.sm.get_match_report(str(s.get("match_id", "")))
+            if r:
+                reports.append((s, r))
+
+        if not reports:
+            raise ValueError(f"No match reports found for round {competition} {date}")
+
+        sections: list[str] = [
+            self._section_header(competition, date, summaries),
+            self._section_results_table(summaries),
+        ]
+
+        for summary, report in reports:
+            sections.append(self._section_match_report(summary, report))
+
+        sections.append(self._section_game_context(is_cup))
+
+        doc = "\n\n---\n\n".join(s for s in sections if s.strip())
+        logger.info(
+            "Compiled round source document: %d matches, %d characters",
+            len(reports), len(doc),
+        )
+        return doc
+
+    def _section_header(self, competition: str, date: str, summaries: list[dict]) -> str:
+        lines = [
+            "# Match Day Source Document",
+            "",
+            f"**Competition:** {competition}  ",
+            f"**Date:** {date}  ",
+            f"**Matches:** {len(summaries)}",
+        ]
+        return "\n".join(lines)
+
+    def _section_results_table(self, summaries: list[dict]) -> str:
+        lines = ["## All Results This Matchday\n"]
+        lines.append("| Home | Score | Away |")
+        lines.append("|------|-------|------|")
+        for s in summaries:
+            lines.append(f"| {s.get('home','?')} | **{s.get('result','?')}** | {s.get('away','?')} |")
+        return "\n".join(lines)
+
+    def _section_match_report(self, summary: dict, report: dict) -> str:
+        home   = summary.get("home", "Home")
+        away   = summary.get("away", "Away")
+        result = summary.get("result", "?")
+
+        hs  = report.get("home_score")
+        as_ = report.get("away_score")
+        score = f"{hs}-{as_}" if hs is not None and as_ is not None else result
+
+        lines = [f"## {home} {score} {away}\n"]
+
+        # Goals
+        goals = report.get("goalscorers") or []
+        if goals:
+            lines.append("### Goals\n")
+            for g in goals:
+                min_txt = f"{g['minute']}'" if g.get("minute") else ""
+                lines.append(f"- {min_txt} **{g.get('player_name','?')}** ({g.get('team','')})")
+            lines.append("")
+
+        # Tactical
+        home_f  = report.get("home_formation") or "?"
+        away_f  = report.get("away_formation") or "?"
+        home_s  = report.get("home_style") or "?"
+        away_s  = report.get("away_style") or "?"
+        home_at = report.get("home_at_settings") or {}
+        away_at = report.get("away_at_settings") or {}
+
+        def fmt_at(ats: dict) -> str:
+            return " | ".join(f"{k.replace('_',' ').title()}: {v}" for k, v in ats.items()) or "—"
+
+        lines.append("### Tactical\n")
+        lines.append(f"- **{home}:** {home_f} · {home_s} | ATs: {fmt_at(home_at)}")
+        lines.append(f"- **{away}:** {away_f} · {away_s} | ATs: {fmt_at(away_at)}\n")
+
+        # Ratings
+        ratings = report.get("player_ratings") or {}
+        mom     = report.get("man_of_match")
+        if ratings or mom:
+            lines.append("### Standouts\n")
+            if mom:
+                lines.append(f"- **Man of the Match:** {mom}")
+            if ratings:
+                top = sorted(ratings.items(), key=lambda x: x[1], reverse=True)[:5]
+                for name, rating in top:
+                    lines.append(f"- {name}: {rating:.1f}")
+            lines.append("")
+
+        # Commentary excerpt
+        commentary = (report.get("commentary") or "").strip()
+        if commentary:
+            lines.append("### Commentary Excerpt\n")
+            lines.append(commentary[:1000])
+            if len(commentary) > 1000:
+                lines.append("\n[...continues...]")
+
+        return "\n".join(lines)
+
+    def _section_game_context(self, is_cup: bool) -> str:
+        filenames = _ALWAYS_INCLUDE[:]
+        filenames += _CUP_SECTIONS if is_cup else _LEAGUE_SECTIONS
+
+        lines = ["## PManager Game Rules Context\n"]
+        lines.append(
+            "_Excerpts from the PManager game manual for accurate commentary "
+            "on tactics, match engine, and competition rules._\n"
+        )
+        for fname in filenames:
+            content = _read_manual_section(fname)
+            if content:
+                title = content.splitlines()[0].lstrip("# ").strip() if content.splitlines() else fname
+                lines.append(f"### {title}\n")
+                lines.append(_truncate(content, _MAX_SECTION_CHARS))
+                lines.append("")
+        return "\n".join(lines)

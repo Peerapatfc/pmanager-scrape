@@ -1,16 +1,19 @@
 """
 Podcast pipeline entry script.
 
-Detects completed matches not yet processed, scrapes their full match reports,
-compiles source documents, generates dual-host podcast scripts via Claude API,
-saves all files to output/podcasts/, and sends Telegram alerts.
+Phase 1 — Scrape: detect completed matches, scrape full match reports,
+save screenshots per match, upsert to match_reports.
+
+Phase 2 — Compile & Generate: group scraped matches by round, compile one
+combined source document per round via RoundCompiler, generate one podcast
+script per round via Gemini API, save files, upsert to round_reports, alert.
 
 Usage:
     python main_podcast_pipeline.py
 
 Exit codes:
-    0 — all pending matches processed (or none pending)
-    1 — config validation failed
+    0 — all pending rounds processed (or none pending)
+    1 — config validation failed or at least one round failed
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ from pathlib import Path
 from src.config import config
 from src.core.logger import logger
 from src.scrapers.match_report import MatchReportScraper
-from src.services.podcast_compiler import PodcastCompiler
+from src.services.podcast_compiler import RoundCompiler
 from src.services.podcast_generator import PodcastGenerator
 from src.services.supabase_client import SupabaseManager
 from src.services.telegram import TelegramBot
@@ -32,110 +35,23 @@ OUTPUT_ROOT = Path("output") / "podcasts"
 
 
 def _safe_dirname(text: str) -> str:
-    """Convert team name to a safe directory component."""
     return re.sub(r"[^\w\-]", "_", text).strip("_") or "Unknown"
 
 
-def _output_dir(fixture: dict) -> Path:
-    """Return the output directory for a given fixture."""
-    date_part = (fixture.get("match_date") or "")[:10] or "unknown_date"
-    competition = _safe_dirname(fixture.get("match_type") or "League")
-    home = _safe_dirname(fixture.get("home_team_name") or "Home")
-    away = _safe_dirname(fixture.get("away_team_name") or "Away")
-    return OUTPUT_ROOT / date_part / competition / f"{home}_vs_{away}"
+def _round_key(date: str, match_type: str) -> str:
+    return f"{date[:10]}___{_safe_dirname(match_type)}"
 
 
-def _process_match(
-    fixture: dict,
-    scraper: MatchReportScraper,
-    sm: SupabaseManager,
-    generator: PodcastGenerator,
-    bot: TelegramBot | None,
-) -> bool:
-    """Process one completed match through the full pipeline.
-
-    Returns True on success, False on failure.
-    """
-    match_id = str(fixture["match_id"])
-    home = fixture.get("home_team_name", "?")
-    away = fixture.get("away_team_name", "?")
-    result = fixture.get("result", "?")
-    logger.info("Processing match %s: %s %s %s", match_id, home, result, away)
-
-    # Step 1 — skip scrape if match_reports row already exists (resume partial run)
-    existing = sm.get_match_report(match_id)
-    screenshot_bytes: bytes | None = None
-    if existing:
-        logger.info("Match report already scraped for %s — skipping scrape", match_id)
-        report = existing
-    else:
-        try:
-            report = scraper.scrape(match_id, fixture)
-            screenshot_bytes = report.pop("_screenshot_bytes", None)
-            sm.upsert_match_report(report)
-        except Exception as exc:
-            logger.error("Scrape failed for match %s: %s", match_id, exc)
-            _alert_failure(bot, f"Scrape failed for {home} vs {away} (match_id={match_id}): {exc}")
-            return False
-
-    # Step 2 — compile source document
-    try:
-        compiler = PodcastCompiler(match_id, sm)
-        source_doc = compiler.compile()
-    except Exception as exc:
-        logger.error("Compile failed for match %s: %s", match_id, exc)
-        _alert_failure(bot, f"Compile failed for {home} vs {away}: {exc}")
-        return False
-
-    # Step 3 — generate podcast script
-    try:
-        script = generator.generate(source_doc)
-    except Exception as exc:
-        logger.error("Script generation failed for match %s: %s", match_id, exc)
-        _alert_failure(bot, f"Claude API failed for {home} vs {away}: {exc}")
-        return False
-
-    # Step 4 — write output files
-    out_dir = _output_dir(fixture)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    source_path = out_dir / "source_document.md"
-    script_path = out_dir / "podcast_script.md"
-
-    source_path.write_text(source_doc, encoding="utf-8")
-    script_path.write_text(script, encoding="utf-8")
-    if screenshot_bytes:
-        (out_dir / "match_report.png").write_bytes(screenshot_bytes)
-        logger.info("Saved match report screenshot to %s", out_dir / "match_report.png")
-    logger.info("Saved output to %s", out_dir)
-
-    # Step 5 — update DB (include full MD content for persistence)
-    sm.update_match_report(
-        match_id,
-        podcast_path=str(out_dir),
-        script_generated_at=datetime.now(tz=timezone.utc).isoformat(),
-        source_doc=source_doc,
-        podcast_script=script,
-    )
-
-    # Step 6 — Telegram alert
-    msg = (
-        f"Podcast script ready\n"
-        f"{home} {result} {away}\n"
-        f"Path: {out_dir}\n\n"
-        f"Upload podcast_script.md to NotebookLM to generate audio."
-    )
-    if bot:
-        try:
-            bot.send_message(msg)
-        except Exception as exc:
-            logger.warning("Telegram alert failed: %s", exc)
-
-    logger.info("Match %s processed successfully", match_id)
-    return True
+def _round_output_dir(date: str, match_type: str) -> Path:
+    return OUTPUT_ROOT / date[:10] / _safe_dirname(match_type)
 
 
-_CUP_KEYWORDS = ("cup", "taca", "taça", "copa", "national", "knockout")
+def _match_output_dir(fixture: dict) -> Path:
+    date  = (fixture.get("match_date") or "")[:10] or "unknown_date"
+    mtype = _safe_dirname(fixture.get("match_type") or "League")
+    home  = _safe_dirname(fixture.get("home_team_name") or "Home")
+    away  = _safe_dirname(fixture.get("away_team_name") or "Away")
+    return OUTPUT_ROOT / date / mtype / f"{home}_vs_{away}"
 
 
 def _alert_failure(bot: TelegramBot | None, msg: str) -> None:
@@ -146,57 +62,76 @@ def _alert_failure(bot: TelegramBot | None, msg: str) -> None:
             pass
 
 
+# ------------------------------------------------------------------ #
+# Phase 1 — scrape helpers                                            #
+# ------------------------------------------------------------------ #
+
+def _scrape_match(
+    fixture: dict,
+    scraper: MatchReportScraper,
+    sm: SupabaseManager,
+    bot: TelegramBot | None,
+) -> bool:
+    """Scrape one match report and save screenshot. Returns True on success."""
+    match_id = str(fixture["match_id"])
+    home = fixture.get("home_team_name", "?")
+    away = fixture.get("away_team_name", "?")
+
+    existing = sm.get_match_report(match_id)
+    if existing:
+        logger.info("Match report already scraped for %s — skipping", match_id)
+        return True
+
+    try:
+        report = scraper.scrape(match_id, fixture)
+        screenshot_bytes: bytes | None = report.pop("_screenshot_bytes", None)
+        sm.upsert_match_report(report)
+
+        if screenshot_bytes:
+            out_dir = _match_output_dir(fixture)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / "match_report.png").write_bytes(screenshot_bytes)
+            logger.info("Saved screenshot: %s", out_dir / "match_report.png")
+
+        return True
+    except Exception as exc:
+        logger.error("Scrape failed for match %s: %s", match_id, exc)
+        _alert_failure(bot, f"Scrape failed for {home} vs {away} (match_id={match_id}): {exc}")
+        return False
+
+
+# ------------------------------------------------------------------ #
+# Round detection helpers                                              #
+# ------------------------------------------------------------------ #
+
+_CUP_KEYWORDS = ("cup", "taca", "taça", "copa", "national", "knockout")
+
+
 def _get_unprocessed_round_matches(
     pending: list[dict],
     sm: SupabaseManager,
 ) -> list[dict]:
-    """Find other league round matches not yet scripted.
+    """Return synthetic fixture dicts for other-team round matches not yet scraped."""
+    our_ids     = {str(f["match_id"]) for f in pending}
+    pending_ids = our_ids
 
-    Looks at league_matchday_results in recent match_reports to find match_ids
-    for the other matches in each round (e.g. all 5 league matches per round).
-    Matches already in match_reports with script_generated_at are skipped.
-
-    Args:
-        pending: Our team's pending matches (already queued for processing).
-        sm:      SupabaseManager for DB queries.
-    """
-    # IDs already being handled as our own matches
-    our_ids = {str(f["match_id"]) for f in pending}
-
-    # Recent match_reports that contain round data (league_matchday_results).
-    # Sort so pending matches come first — they were just scraped and have the
-    # correct round's calendar data. Non-pending parents scraped previously may
-    # contain stale global calendar data (always shows most-recent completed round),
-    # so their round match IDs are wrong. `seen` dedup ensures the pending parent
-    # wins by being processed first.
-    pending_ids = {str(f["match_id"]) for f in pending}
     recent_raw = sm.get_recent_league_match_reports(lookback_days=7)
-    recent = sorted(recent_raw, key=lambda r: str(r.get("match_id", "")) not in pending_ids)
+    recent     = sorted(recent_raw, key=lambda r: str(r.get("match_id", "")) not in pending_ids)
 
-    # IDs already scripted — skip these
     seen: set[str] = set(our_ids)
     results: list[dict] = []
 
     for parent in recent:
         league_results = parent.get("league_matchday_results") or []
-
-        # Use actual match_date and match_type from upcoming_fixtures
         parent_fixture = sm.get_fixture_by_match_id(str(parent.get("match_id", "")))
-        match_date = (
-            (parent_fixture or {}).get("match_date")
-            or (parent.get("scraped_at") or "")[:10]
-        )
-        match_type = (parent_fixture or {}).get("match_type") or "League"
+        match_date     = (parent_fixture or {}).get("match_date") or (parent.get("scraped_at") or "")[:10]
+        match_type     = (parent_fixture or {}).get("match_type") or "League"
 
         for r in league_results:
             mid = str(r.get("match_id") or "")
             if not mid or mid in seen:
                 continue
             seen.add(mid)
-
-            existing = sm.get_match_report(mid)
-            if existing and existing.get("script_generated_at"):
-                continue
 
             results.append({
                 "match_id":       mid,
@@ -212,135 +147,224 @@ def _get_unprocessed_round_matches(
     return results
 
 
-def _process_round_match(
+def _scrape_round_match(
     fixture: dict,
     scraper: MatchReportScraper,
     sm: SupabaseManager,
+    bot: TelegramBot | None,
+) -> bool:
+    """Scrape a round match (other team). Returns True on success."""
+    match_id = str(fixture["match_id"])
+    home     = fixture.get("home_team_name", "?")
+    away     = fixture.get("away_team_name", "?")
+
+    existing = sm.get_match_report(match_id)
+    if existing:
+        logger.info("Round match already scraped for %s — skipping", match_id)
+        return True
+
+    try:
+        report = scraper.scrape(match_id, fixture)
+        screenshot_bytes: bytes | None = report.pop("_screenshot_bytes", None)
+        report["league_matchday_results"] = fixture.get("_round_results", [])
+        sm.upsert_match_report(report)
+
+        if screenshot_bytes:
+            out_dir = _match_output_dir(fixture)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / "match_report.png").write_bytes(screenshot_bytes)
+            logger.info("Saved screenshot: %s", out_dir / "match_report.png")
+
+        return True
+    except Exception as exc:
+        logger.error("Scrape failed for round match %s: %s", match_id, exc)
+        _alert_failure(bot, f"Scrape failed for {home} vs {away} (round match): {exc}")
+        return False
+
+
+# ------------------------------------------------------------------ #
+# Phase 2 — round grouping + generation                               #
+# ------------------------------------------------------------------ #
+
+def _group_into_rounds(fixtures: list[dict]) -> list[dict]:
+    """Group fixture dicts by (date, match_type) into round_meta dicts."""
+    from collections import defaultdict
+    groups: dict[str, list[dict]] = defaultdict(list)
+
+    for f in fixtures:
+        date  = (f.get("match_date") or "")[:10] or "unknown"
+        mtype = f.get("match_type") or "League"
+        key   = _round_key(date, mtype)
+        groups[key].append(f)
+
+    rounds = []
+    for key, fixs in groups.items():
+        f0    = fixs[0]
+        date  = (f0.get("match_date") or "")[:10]
+        mtype = f0.get("match_type") or "League"
+        rounds.append({
+            "round_key":   key,
+            "date":        date,
+            "competition": mtype,
+            "match_summaries": [
+                {
+                    "match_id": str(f["match_id"]),
+                    "home":     f.get("home_team_name", "?"),
+                    "away":     f.get("away_team_name", "?"),
+                    "result":   f.get("result", "?"),
+                }
+                for f in fixs
+            ],
+        })
+
+    return rounds
+
+
+def _process_round(
+    round_meta: dict,
+    sm: SupabaseManager,
+    compiler: RoundCompiler,
     generator: PodcastGenerator,
     bot: TelegramBot | None,
 ) -> bool:
-    """Process one round match (another team's match in the same league round).
+    """Compile + generate + save one round. Returns True on success."""
+    rkey        = round_meta["round_key"]
+    competition = round_meta["competition"]
+    date        = round_meta["date"]
+    summaries   = round_meta["match_summaries"]
 
-    Uses fixture_override in the compiler (no upcoming_fixtures row, no scouting
-    data) and reuses pre-scraped round results to avoid duplicate requests.
-    """
-    match_id = str(fixture["match_id"])
-    home = fixture.get("home_team_name", "?")
-    away = fixture.get("away_team_name", "?")
-    result = fixture.get("result", "?")
-    logger.info("Processing round match %s: %s %s %s", match_id, home, result, away)
+    logger.info("Processing round %s (%d matches)", rkey, len(summaries))
 
-    existing = sm.get_match_report(match_id)
-    screenshot_bytes: bytes | None = None
-    if existing:
-        logger.info("Round match report already scraped for %s — skipping scrape", match_id)
-    else:
-        try:
-            report = scraper.scrape(match_id, fixture)
-            screenshot_bytes = report.pop("_screenshot_bytes", None)
-            # Reuse pre-scraped round results to avoid re-scraping the calendar
-            report["league_matchday_results"] = fixture.get("_round_results", [])
-            sm.upsert_match_report(report)
-        except Exception as exc:
-            logger.error("Scrape failed for round match %s: %s", match_id, exc)
-            _alert_failure(bot, f"Scrape failed for {home} vs {away} (round match): {exc}")
-            return False
+    # Skip if round already scripted
+    existing = sm.get_round_report(rkey)
+    if existing and existing.get("generated_at"):
+        logger.info("Round %s already scripted — skipping", rkey)
+        return True
 
+    # Compile
     try:
-        compiler = PodcastCompiler(match_id, sm)
-        source_doc = compiler.compile(fixture_override=fixture)
+        source_doc = compiler.compile(round_meta)
     except Exception as exc:
-        logger.error("Compile failed for round match %s: %s", match_id, exc)
-        _alert_failure(bot, f"Compile failed for {home} vs {away} (round match): {exc}")
+        logger.error("Compile failed for round %s: %s", rkey, exc)
+        _alert_failure(bot, f"Compile failed for {competition} {date}: {exc}")
         return False
 
+    # Generate
     try:
         script = generator.generate(source_doc)
     except Exception as exc:
-        logger.error("Script generation failed for round match %s: %s", match_id, exc)
-        _alert_failure(bot, f"Gemini API failed for {home} vs {away} (round match): {exc}")
+        logger.error("Script generation failed for round %s: %s", rkey, exc)
+        _alert_failure(bot, f"Gemini API failed for {competition} {date}: {exc}")
         return False
 
-    out_dir = _output_dir(fixture)
+    # Save files to round folder
+    out_dir = _round_output_dir(date, competition)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "source_document.md").write_text(source_doc, encoding="utf-8")
     (out_dir / "podcast_script.md").write_text(script, encoding="utf-8")
-    if screenshot_bytes:
-        (out_dir / "match_report.png").write_bytes(screenshot_bytes)
-        logger.info("Saved match report screenshot to %s", out_dir / "match_report.png")
-    logger.info("Saved round match output to %s", out_dir)
+    logger.info("Saved round output to %s", out_dir)
 
-    sm.update_match_report(
-        match_id,
-        podcast_path=str(out_dir),
-        script_generated_at=datetime.now(tz=timezone.utc).isoformat(),
-        source_doc=source_doc,
-        podcast_script=script,
-    )
+    # Upsert round_reports
+    sm.upsert_round_report({
+        "round_key":       rkey,
+        "date":            date,
+        "competition":     competition,
+        "match_summaries": summaries,
+        "source_doc":      source_doc,
+        "podcast_script":  script,
+        "generated_at":    datetime.now(tz=timezone.utc).isoformat(),
+    })
 
+    # Mark all match_reports as scripted
+    for s in summaries:
+        sm.update_match_report(
+            str(s["match_id"]),
+            script_generated_at=datetime.now(tz=timezone.utc).isoformat(),
+        )
+
+    # Telegram alert
     if bot:
-        try:
-            bot.send_message(
-                f"Podcast script ready (round match)\n"
-                f"{home} {result} {away}\n"
-                f"Path: {out_dir}",
-                markdown=False,
-            )
-        except Exception as exc:
-            logger.warning("Telegram alert failed: %s", exc)
+        results_txt = "\n".join(
+            f"  {s['home']} {s['result']} {s['away']}" for s in summaries
+        )
+        bot.send_message(
+            f"Podcast script ready\n"
+            f"{competition} — {date}\n"
+            f"{results_txt}\n\n"
+            f"Path: {out_dir}",
+            markdown=False,
+        )
 
-    logger.info("Round match %s processed successfully", match_id)
+    logger.info("Round %s processed successfully", rkey)
     return True
 
+
+# ------------------------------------------------------------------ #
+# Main                                                                 #
+# ------------------------------------------------------------------ #
 
 def main() -> None:
     config.validate_podcast()
 
-    sm  = SupabaseManager()
-    gen = PodcastGenerator()
+    sm       = SupabaseManager()
+    gen      = PodcastGenerator()
+    compiler = RoundCompiler(sm)
     bot: TelegramBot | None = None
     if config.TELEGRAM_BOT_TOKEN and config.TELEGRAM_CHAT_ID:
         bot = TelegramBot()
 
     pending = sm.get_pending_match_reports()
-    round_matches = _get_unprocessed_round_matches(pending, sm)
-
-    total = len(pending) + len(round_matches)
-    if not total:
+    if not pending:
         logger.info("No pending matches to process.")
         return
 
-    logger.info(
-        "Processing %d our match(es) + %d round match(es)...",
-        len(pending), len(round_matches),
-    )
-    success_count = 0
-    fail_count    = 0
+    logger.info("Found %d pending match(es) to scrape.", len(pending))
+
+    # ---- Phase 1: scrape all matches --------------------------------
+    scraped_fixtures: list[dict] = []
+    failed_scrape = 0
 
     with MatchReportScraper() as scraper:
         scraper.login(config.PM_USERNAME, config.PM_PASSWORD)
 
         for fixture in pending:
-            ok = _process_match(fixture, scraper, sm, gen, bot)
+            ok = _scrape_match(fixture, scraper, sm, bot)
             if ok:
-                success_count += 1
+                scraped_fixtures.append(fixture)
             else:
-                fail_count += 1
+                failed_scrape += 1
 
-        # Re-collect round matches now that our matches are processed and their
-        # league_matchday_results (with match_ids) are stored in match_reports
+        # Discover other round matches now that our reports are in DB
         round_matches = _get_unprocessed_round_matches(pending, sm)
-        if round_matches:
-            logger.info("Processing %d other round match(es)...", len(round_matches))
-            for fixture in round_matches:
-                ok = _process_round_match(fixture, scraper, sm, gen, bot)
-                if ok:
-                    success_count += 1
-                else:
-                    fail_count += 1
+        logger.info("Discovered %d other round match(es).", len(round_matches))
+
+        for fixture in round_matches:
+            ok = _scrape_round_match(fixture, scraper, sm, bot)
+            if ok:
+                scraped_fixtures.append(fixture)
+            else:
+                failed_scrape += 1
+
+    if not scraped_fixtures:
+        logger.error("No matches scraped successfully.")
+        sys.exit(1)
+
+    # ---- Phase 2: group into rounds + generate ----------------------
+    rounds = _group_into_rounds(scraped_fixtures)
+    logger.info("Generating scripts for %d round(s)...", len(rounds))
+
+    success_count = 0
+    fail_count    = failed_scrape
+
+    for round_meta in rounds:
+        ok = _process_round(round_meta, sm, compiler, gen, bot)
+        if ok:
+            success_count += 1
+        else:
+            fail_count += 1
 
     logger.info(
-        "Pipeline complete. Success: %d, Failed: %d",
+        "Pipeline complete. Rounds: %d success, %d failed.",
         success_count, fail_count,
     )
     if fail_count > 0:

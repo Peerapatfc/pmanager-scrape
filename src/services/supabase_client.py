@@ -759,6 +759,48 @@ class SupabaseManager:
             logger.error("Failed to fetch pending match reports: %s", exc)
             return []
 
+    # ------------------------------------------------------------------
+    # round_reports table
+    # ------------------------------------------------------------------
+
+    def upsert_round_report(self, data: dict) -> None:
+        """Upsert a round-level podcast report row."""
+        record = {k: self._to_native(v) for k, v in data.items()}
+        try:
+            self.client.table("round_reports").upsert(record).execute()
+            logger.info("Upserted round_report for round_key=%s", data.get("round_key"))
+        except Exception as exc:
+            logger.error("Failed to upsert round_report %s: %s", data.get("round_key"), exc)
+
+    def get_round_report(self, round_key: str) -> dict | None:
+        """Fetch one round_reports row by round_key."""
+        try:
+            res = (
+                self.client.table("round_reports")
+                .select("*")
+                .eq("round_key", round_key)
+                .maybe_single()
+                .execute()
+            )
+            return res.data if res else None
+        except Exception as exc:
+            logger.error("Failed to fetch round_report %s: %s", round_key, exc)
+            return None
+
+    def get_all_round_reports(self) -> list[dict]:
+        """Fetch all round_reports ordered by date descending."""
+        try:
+            resp = (
+                self.client.table("round_reports")
+                .select("round_key, date, competition, match_summaries, generated_at")
+                .order("date", desc=True)
+                .execute()
+            )
+            return resp.data or []
+        except Exception as exc:
+            logger.error("Failed to fetch round_reports: %s", exc)
+            return []
+
     def get_recent_league_match_reports(self, lookback_days: int = 7) -> list[dict]:
         """Return match_reports from the last N days that have league_matchday_results.
 

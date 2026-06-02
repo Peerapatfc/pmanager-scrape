@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Mic, Copy, Download, X, FileText, Radio, ChevronRight } from "lucide-react"
-import type { PodcastRow } from "./page"
+import { Mic, Copy, Download, X, FileText, Radio, ChevronDown, ChevronRight } from "lucide-react"
+import type { RoundRow } from "./page"
 
 type ContentTab = "script" | "source"
 
@@ -11,23 +11,13 @@ type PodcastContent = {
   source_doc: string | null
 }
 
-function parsePath(path: string | null) {
-  if (!path) return { date: "—", competition: "—", home: "—", away: "—" }
-  const parts = path.replace(/\\/g, "/").split("/")
-  const date = parts.at(-3) ?? "—"
-  const competition = (parts.at(-2) ?? "—").replace(/_/g, " ")
-  const matchupRaw = parts.at(-1) ?? ""
-  const vsIdx = matchupRaw.indexOf("_vs_")
-  const home = vsIdx !== -1 ? matchupRaw.slice(0, vsIdx).replace(/_/g, " ") : matchupRaw
-  const away = vsIdx !== -1 ? matchupRaw.slice(vsIdx + 4).replace(/_/g, " ") : "—"
-  return { date, competition, home, away }
-}
-
 function competitionColor(competition: string) {
   const c = competition.toLowerCase()
-  if (c.includes("cup") || c.includes("taca") || c.includes("carica")) return "text-amber-400 bg-amber-400/10 border-amber-400/20"
-  if (c.includes("world")) return "text-purple-400 bg-purple-400/10 border-purple-400/20"
-  return "text-emerald-400 bg-emerald-400/10 border-emerald-400/20"
+  if (c.includes("cup") || c.includes("taca") || c.includes("carica") || c.includes("quarter") || c.includes("final"))
+    return "text-amber-400 bg-amber-400/10 border-amber-400/30"
+  if (c.includes("world"))
+    return "text-purple-400 bg-purple-400/10 border-purple-400/30"
+  return "text-emerald-400 bg-emerald-400/10 border-emerald-400/30"
 }
 
 function copyToClipboard(text: string) {
@@ -44,27 +34,37 @@ function downloadFile(text: string, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-export default function PodcastsClient({ podcasts }: { podcasts: PodcastRow[] }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+export default function PodcastsClient({ rounds }: { rounds: RoundRow[] }) {
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [content, setContent] = useState<PodcastContent | null>(null)
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState<ContentTab>("script")
   const [copied, setCopied] = useState(false)
 
-  const selectedPodcast = podcasts.find((p) => p.match_id === selectedId)
+  const selectedRound = rounds.find((r) => r.round_key === selectedKey)
 
-  async function handleSelect(matchId: string) {
-    if (matchId === selectedId) {
-      setSelectedId(null)
+  function toggleExpand(key: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  async function handleSelect(roundKey: string) {
+    if (roundKey === selectedKey) {
+      setSelectedKey(null)
       setContent(null)
       return
     }
-    setSelectedId(matchId)
+    setSelectedKey(roundKey)
     setContent(null)
     setLoading(true)
     setTab("script")
     try {
-      const res = await fetch(`/api/podcasts/${matchId}`)
+      const res = await fetch(`/api/podcasts/${encodeURIComponent(roundKey)}`)
       const json = await res.json()
       setContent(json)
     } catch {
@@ -83,11 +83,12 @@ export default function PodcastsClient({ podcasts }: { podcasts: PodcastRow[] })
   }
 
   function handleDownload() {
-    const { home, away, date } = parsePath(selectedPodcast?.podcast_path ?? null)
+    if (!selectedRound) return
+    const suffix = `${selectedRound.competition}_${selectedRound.date}`.replace(/\s+/g, "_")
     if (tab === "script" && content?.podcast_script) {
-      downloadFile(content.podcast_script, `podcast_script_${home}_vs_${away}_${date}.md`)
+      downloadFile(content.podcast_script, `podcast_script_${suffix}.md`)
     } else if (tab === "source" && content?.source_doc) {
-      downloadFile(content.source_doc, `source_doc_${home}_vs_${away}_${date}.md`)
+      downloadFile(content.source_doc, `source_doc_${suffix}.md`)
     }
   }
 
@@ -99,66 +100,85 @@ export default function PodcastsClient({ podcasts }: { podcasts: PodcastRow[] })
         </div>
         <div>
           <h1 className="text-2xl font-bold text-white">Podcast Scripts</h1>
-          <p className="text-neutral-400 text-sm">{podcasts.length} match{podcasts.length !== 1 ? "es" : ""} processed</p>
+          <p className="text-neutral-400 text-sm">
+            {rounds.length} round{rounds.length !== 1 ? "s" : ""}
+          </p>
         </div>
       </div>
 
       <div className="flex gap-6 items-start">
-        {/* List */}
-        <div className={`space-y-3 flex-shrink-0 ${selectedId ? "w-80" : "w-full max-w-2xl"}`}>
-          {podcasts.length === 0 && (
+        {/* Round list */}
+        <div className={`space-y-3 shrink-0 ${selectedKey ? "w-80" : "w-full max-w-2xl"}`}>
+          {rounds.length === 0 && (
             <div className="text-center py-16 text-neutral-500">
               <Mic size={40} className="mx-auto mb-3 opacity-30" />
               <p>No podcast scripts yet.</p>
               <p className="text-sm mt-1">Run the pipeline after a match.</p>
             </div>
           )}
-          {podcasts.map((p) => {
-            const { date, competition, home, away } = parsePath(p.podcast_path)
-            const isSelected = p.match_id === selectedId
-            const score =
-              p.home_score != null && p.away_score != null
-                ? `${p.home_score} - ${p.away_score}`
-                : "? - ?"
+
+          {rounds.map((round) => {
+            const isSelected = round.round_key === selectedKey
+            const isOpen     = expanded.has(round.round_key)
+            const colorCls   = competitionColor(round.competition)
 
             return (
-              <button
-                key={p.match_id}
-                onClick={() => handleSelect(p.match_id)}
-                className={`w-full text-left p-4 rounded-xl border transition-all ${
-                  isSelected
-                    ? "bg-amber-400/10 border-amber-400/40"
-                    : "bg-white/5 border-white/10 hover:bg-white/8 hover:border-white/20"
+              <div
+                key={round.round_key}
+                className={`rounded-xl border overflow-hidden transition-all ${
+                  isSelected ? "border-amber-400/40" : "border-white/10"
                 }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${competitionColor(competition)}`}>
-                        {competition}
-                      </span>
-                      <span className="text-xs text-neutral-500">{date}</span>
-                    </div>
-                    <div className="font-semibold text-white truncate">
-                      {home} <span className="text-neutral-400 font-normal">{score}</span> {away}
-                    </div>
+                {/* Round header — click to open script */}
+                <button
+                  onClick={() => handleSelect(round.round_key)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                    isSelected ? "bg-amber-400/10" : "bg-white/5 hover:bg-white/8"
+                  }`}
+                >
+                  <span className={`text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 ${colorCls}`}>
+                    {round.competition}
+                  </span>
+                  <span className="text-sm text-neutral-300 font-medium shrink-0">{round.date}</span>
+                  <span className="text-xs text-neutral-600 shrink-0">
+                    {round.match_summaries.length} matches
+                  </span>
+                  <div className="flex-1" />
+                  {/* Expand match list toggle */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleExpand(round.round_key) }}
+                    className="p-1 rounded hover:bg-white/10 text-neutral-500"
+                  >
+                    {isOpen
+                      ? <ChevronDown size={14} />
+                      : <ChevronRight size={14} />}
+                  </button>
+                </button>
+
+                {/* Match list (expandable) */}
+                {isOpen && (
+                  <div className="divide-y divide-white/5 bg-neutral-950">
+                    {round.match_summaries.map((m) => (
+                      <div key={m.match_id} className="px-4 py-2 text-sm text-neutral-400">
+                        <span className="font-medium text-neutral-200">{m.home}</span>
+                        <span className="mx-2 text-neutral-600">{m.result}</span>
+                        <span className="font-medium text-neutral-200">{m.away}</span>
+                      </div>
+                    ))}
                   </div>
-                  <ChevronRight
-                    size={16}
-                    className={`flex-shrink-0 mt-1 transition-transform text-neutral-500 ${isSelected ? "rotate-90 text-amber-400" : ""}`}
-                  />
-                </div>
-              </button>
+                )}
+              </div>
             )
           })}
         </div>
 
-        {/* Detail panel */}
-        {selectedId && (
-          <div className="flex-1 min-w-0 bg-neutral-950 border border-white/10 rounded-xl overflow-hidden flex flex-col" style={{ height: "calc(100vh - 180px)" }}>
-            {/* Panel header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5 flex-shrink-0">
-              {/* Tabs */}
+        {/* Script panel */}
+        {selectedKey && (
+          <div
+            className="flex-1 min-w-0 bg-neutral-950 border border-white/10 rounded-xl overflow-hidden flex flex-col"
+            style={{ height: "calc(100vh - 180px)" }}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5 shrink-0">
               <div className="flex gap-1">
                 <button
                   onClick={() => setTab("script")}
@@ -180,7 +200,6 @@ export default function PodcastsClient({ podcasts }: { podcasts: PodcastRow[] })
                 </button>
               </div>
 
-              {/* Actions */}
               <div className="flex items-center gap-2">
                 {content && (
                   <>
@@ -201,7 +220,7 @@ export default function PodcastsClient({ podcasts }: { podcasts: PodcastRow[] })
                   </>
                 )}
                 <button
-                  onClick={() => { setSelectedId(null); setContent(null) }}
+                  onClick={() => { setSelectedKey(null); setContent(null) }}
                   className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-500 hover:text-white transition-colors"
                 >
                   <X size={16} />
@@ -209,7 +228,6 @@ export default function PodcastsClient({ podcasts }: { podcasts: PodcastRow[] })
               </div>
             </div>
 
-            {/* Content */}
             <div className="flex-1 overflow-auto p-4">
               {loading && (
                 <div className="flex items-center justify-center h-full text-neutral-500">
@@ -222,8 +240,8 @@ export default function PodcastsClient({ podcasts }: { podcasts: PodcastRow[] })
               {!loading && content && (
                 <pre className="whitespace-pre-wrap text-sm text-neutral-200 font-mono leading-relaxed">
                   {tab === "script"
-                    ? (content.podcast_script ?? "_Script not available_")
-                    : (content.source_doc ?? "_Source document not available_")}
+                    ? (content.podcast_script ?? "_Script not available — re-run pipeline._")
+                    : (content.source_doc ?? "_Source document not available — re-run pipeline._")}
                 </pre>
               )}
               {!loading && !content && (
