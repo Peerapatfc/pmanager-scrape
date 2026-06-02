@@ -971,6 +971,15 @@ class SupabaseManager:
             logger.error("Failed to fetch league_match_results for team %s: %s", team_name, e)
             return []
 
+    def get_all_league_match_game_ids(self) -> list[str]:
+        """Return all game_id values already in league_match_results."""
+        try:
+            resp = self.client.table("league_match_results").select("game_id").execute()
+            return [r["game_id"] for r in (resp.data or [])]
+        except Exception as e:
+            logger.error("Failed to fetch league_match_results game_ids: %s", e)
+            return []
+
     # ------------------------------------------------------------------
     # players table — proxy lookup
     # ------------------------------------------------------------------

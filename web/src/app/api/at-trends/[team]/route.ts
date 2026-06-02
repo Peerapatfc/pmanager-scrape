@@ -17,9 +17,10 @@ function inc(obj: Record<string, number>, key: string | boolean | null) {
 
 export async function GET(
   _req: Request,
-  { params }: { params: { team: string } },
+  { params }: { params: Promise<{ team: string }> },
 ) {
-  const team = decodeURIComponent(params.team)
+  const { team: rawTeam } = await params
+  const team = decodeURIComponent(rawTeam)
 
   const client = db()
   const [homeRes, awayRes] = await Promise.all([
