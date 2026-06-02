@@ -713,14 +713,24 @@ class SupabaseManager:
             return None
 
     def get_pending_match_reports(self, lookback_days: int = 7) -> list[dict]:
-        """Return recently completed fixtures that have no generated podcast script.
+        """Return recently completed fixtures whose round has no generated podcast script.
 
-        Only looks back ``lookback_days`` days to avoid queuing all historical
-        matches on the first run.
+        A fixture is pending when its round (date + match_type) does not yet have
+        a row in round_reports with generated_at set.  Checking round_reports
+        (not match_reports.script_generated_at) ensures old per-match runs don't
+        block the new per-round pipeline.
 
         Args:
             lookback_days: How many days back to look for completed matches.
         """
+        import re
+
+        def _safe(text: str) -> str:
+            return re.sub(r"[^\w\-]", "_", text).strip("_") or "Unknown"
+
+        def _rkey(date: str, match_type: str) -> str:
+            return f"{date[:10]}___{_safe(match_type)}"
+
         try:
             cutoff = (
                 datetime.now(tz=timezone.utc) - timedelta(days=lookback_days)
@@ -740,16 +750,22 @@ class SupabaseManager:
             if not all_fixtures:
                 return []
 
-            # Match IDs already processed (script generated)
+            # Round keys that already have a generated script
             done_resp = (
-                self.client.table("match_reports")
-                .select("match_id")
-                .not_.is_("script_generated_at", "null")
+                self.client.table("round_reports")
+                .select("round_key")
+                .not_.is_("generated_at", "null")
                 .execute()
             )
-            done_ids = {r["match_id"] for r in (done_resp.data or [])}
+            done_round_keys = {r["round_key"] for r in (done_resp.data or [])}
 
-            pending = [f for f in all_fixtures if str(f["match_id"]) not in done_ids]
+            pending = [
+                f for f in all_fixtures
+                if _rkey(
+                    (f.get("match_date") or "")[:10],
+                    f.get("match_type") or "League",
+                ) not in done_round_keys
+            ]
             logger.info(
                 "Pending podcast matches: %d of %d completed fixtures",
                 len(pending), len(all_fixtures),
