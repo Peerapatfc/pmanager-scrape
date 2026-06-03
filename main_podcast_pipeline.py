@@ -115,10 +115,19 @@ def _get_unprocessed_round_matches(
     our_ids     = {str(f["match_id"]) for f in pending}
     pending_ids = our_ids
 
+    # Seed seen with every match_id already committed to a completed round so that
+    # stale league_matchday_results (game page caching previous round data) cannot
+    # assign old match_ids to the new round.
+    seen: set[str] = set(our_ids)
+    for done in sm.get_all_round_reports():
+        for s in (done.get("match_summaries") or []):
+            mid = str(s.get("match_id") or "")
+            if mid:
+                seen.add(mid)
+
     recent_raw = sm.get_recent_league_match_reports(lookback_days=7)
     recent     = sorted(recent_raw, key=lambda r: str(r.get("match_id", "")) not in pending_ids)
 
-    seen: set[str] = set(our_ids)
     results: list[dict] = []
 
     for parent in recent:
