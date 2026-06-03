@@ -22,7 +22,6 @@ from bs4 import BeautifulSoup
 from src.core.logger import logger
 from src.scrapers.base import BaseScraper
 
-
 # ── Stats-tab label → (field_name, value_type) ───────────────────────────────
 _LABEL_MAP: dict[str, tuple[str, str]] = {
     "Formation":        ("formation",       "str"),

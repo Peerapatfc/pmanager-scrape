@@ -215,7 +215,7 @@ class MatchReportScraper(BaseScraper):
             home_obj = match.get("homeTeam", {})
             away_obj = match.get("awayTeam", {})
             home_id  = home_obj.get("id")
-            away_id  = away_obj.get("id")
+            _away_id = away_obj.get("id")
             home_nm  = home_obj.get("name", "")
             away_nm  = away_obj.get("name", "")
 

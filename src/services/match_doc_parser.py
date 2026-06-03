@@ -299,7 +299,6 @@ def _parse_stats(section: str) -> dict[str, Any]:
     # For plain "Shots", find first occurrence that isn't part of "Shots on Goal"
     for m_s in _SHOTS_RE.finditer(search_text):
         # Confirm the match isn't inside "Shots on Goal"
-        before = search_text[max(0, m_s.start() - 5) : m_s.start()]
         if "on Goal" in search_text[m_s.start():m_s.start() + 20]:
             continue
         stats["shots_home"] = int(m_s.group(1))
