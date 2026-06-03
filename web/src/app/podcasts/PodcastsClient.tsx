@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Mic, Copy, Download, X, FileText, Radio, ChevronDown, ChevronRight, Sparkles } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { Mic, Copy, Download, X, FileText, Radio, ChevronDown, ChevronRight, Sparkles, Volume2, VolumeX, RotateCw, Wand2 } from "lucide-react"
 import type { RoundRow } from "./page"
 
 const NLM_PROMPTS = {
@@ -144,6 +144,14 @@ function downloadFile(text: string, filename: string) {
   URL.revokeObjectURL(url)
 }
 
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/#{1,6}\s+/g, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+}
+
 export default function PodcastsClient({ rounds }: { rounds: RoundRow[] }) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -151,6 +159,67 @@ export default function PodcastsClient({ rounds }: { rounds: RoundRow[] }) {
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState<ContentTab>("script")
   const [copied, setCopied] = useState(false)
+  const [speaking, setSpeaking] = useState(false)
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
+  const [compiling, setCompiling] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  useEffect(() => {
+    return () => { window.speechSynthesis?.cancel() }
+  }, [])
+
+  function handleSpeak() {
+    if (!content?.podcast_script) return
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(stripMarkdown(content.podcast_script))
+    utterance.lang = "th-TH"
+    utterance.rate = 0.95
+    utterance.onend = () => setSpeaking(false)
+    utterance.onerror = () => setSpeaking(false)
+    utteranceRef.current = utterance
+    window.speechSynthesis.speak(utterance)
+    setSpeaking(true)
+  }
+
+  function handleStop() {
+    window.speechSynthesis.cancel()
+    setSpeaking(false)
+  }
+
+  async function handleCompile() {
+    if (!selectedKey) return
+    setCompiling(true)
+    setActionError(null)
+    try {
+      const res = await fetch(`/api/podcasts/${encodeURIComponent(selectedKey)}/compile`, { method: "POST" })
+      const json = await res.json()
+      if (!res.ok) { setActionError(json.error ?? "Compile failed"); return }
+      setContent((prev) => prev ? { ...prev, source_doc: json.source_doc } : { podcast_script: null, source_doc: json.source_doc })
+      setTab("source")
+    } catch (e) {
+      setActionError(String(e))
+    } finally {
+      setCompiling(false)
+    }
+  }
+
+  async function handleGenerate() {
+    if (!selectedKey) return
+    setGenerating(true)
+    setActionError(null)
+    try {
+      const res = await fetch(`/api/podcasts/${encodeURIComponent(selectedKey)}/generate`, { method: "POST" })
+      const json = await res.json()
+      if (!res.ok) { setActionError(json.error ?? "Generate failed"); return }
+      setContent((prev) => prev ? { ...prev, podcast_script: json.podcast_script } : { podcast_script: json.podcast_script, source_doc: null })
+      setTab("script")
+    } catch (e) {
+      setActionError(String(e))
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   const selectedRound = rounds.find((r) => r.round_key === selectedKey)
 
@@ -290,6 +359,11 @@ export default function PodcastsClient({ rounds }: { rounds: RoundRow[] }) {
             className="flex-1 min-w-0 bg-neutral-950 border border-white/10 rounded-xl overflow-hidden flex flex-col"
             style={{ height: "calc(100vh - 180px)" }}
           >
+            {actionError && (
+              <div className="px-4 py-2 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs">
+                {actionError}
+              </div>
+            )}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5 shrink-0">
               <div className="flex gap-1">
                 <button
@@ -313,8 +387,37 @@ export default function PodcastsClient({ rounds }: { rounds: RoundRow[] }) {
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCompile}
+                  disabled={compiling || generating}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-blue-400/10 hover:bg-blue-400/20 text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <RotateCw size={13} className={compiling ? "animate-spin" : ""} />
+                  {compiling ? "Compiling…" : "Compile"}
+                </button>
+                <button
+                  onClick={handleGenerate}
+                  disabled={compiling || generating}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-violet-400/10 hover:bg-violet-400/20 text-violet-400 hover:text-violet-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Wand2 size={13} className={generating ? "animate-spin" : ""} />
+                  {generating ? "Generating…" : "Generate"}
+                </button>
                 {content && (
                   <>
+                    {tab === "script" && content.podcast_script && (
+                      <button
+                        onClick={speaking ? handleStop : handleSpeak}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                          speaking
+                            ? "bg-red-400/15 hover:bg-red-400/25 text-red-400"
+                            : "bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white"
+                        }`}
+                      >
+                        {speaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                        {speaking ? "Stop" : "Read Aloud"}
+                      </button>
+                    )}
                     <button
                       onClick={handleCopy}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white transition-colors"
@@ -332,7 +435,7 @@ export default function PodcastsClient({ rounds }: { rounds: RoundRow[] }) {
                   </>
                 )}
                 <button
-                  onClick={() => { setSelectedKey(null); setContent(null) }}
+                  onClick={() => { handleStop(); setSelectedKey(null); setContent(null) }}
                   className="p-1.5 rounded-lg hover:bg-white/10 text-neutral-500 hover:text-white transition-colors"
                 >
                   <X size={16} />
