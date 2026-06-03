@@ -8,38 +8,11 @@ produce a structured Markdown source document ready for the podcast generator.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from src.core.logger import logger
 
-# Sections of the game manual that provide podcast context.
-# Always included: tactics (13) and match engine (14).
-# League/cup-specific sections are added based on match_type.
-_MANUAL_DIR = Path(__file__).parent.parent.parent / "docs" / "manual" / "sections"
-
-_ALWAYS_INCLUDE = ["section_13.md", "section_14.md", "section_34.md"]
-_LEAGUE_SECTIONS = ["section_20.md"]
-_CUP_SECTIONS    = ["section_22.md"]
-_CUP_KEYWORDS    = ("cup", "taca", "taça", "copa", "national", "knockout")
-
-# Maximum characters to embed from each manual section to keep the doc concise
-_MAX_SECTION_CHARS = 3000
-
-
-def _read_manual_section(filename: str) -> str:
-    path = _MANUAL_DIR / filename
-    try:
-        return path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        logger.warning("Manual section not found: %s", path)
-        return ""
-
-
-def _truncate(text: str, max_chars: int) -> str:
-    if len(text) <= max_chars:
-        return text
-    return text[:max_chars].rsplit("\n", 1)[0] + "\n\n[...section truncated...]"
+_CUP_KEYWORDS = ("cup", "taca", "taça", "copa", "national", "knockout")
 
 
 class PodcastCompiler:
@@ -93,9 +66,6 @@ class PodcastCompiler:
         if not report:
             raise ValueError(f"Missing match data for match_id={self.match_id}")
 
-        match_type = (fixture.get("match_type") or "").lower()
-        is_cup = any(kw in match_type for kw in _CUP_KEYWORDS)
-
         sections: list[str] = [
             self._section_header(report, fixture, team_info),
             self._section_recap(report, fixture),
@@ -104,7 +74,6 @@ class PodcastCompiler:
             self._section_matchday_context(report, fixture),
             self._section_reaction(report, fixture, team_info),
             self._section_next_fixture(next_fixture, fixture_analysis),
-            self._section_game_context(is_cup),
             self._section_key_stats_summary(report, fixture),
         ]
 
@@ -167,14 +136,6 @@ class PodcastCompiler:
                 min_txt = f"{s['minute']}'" if s.get("minute") else ""
                 lines.append(f"- {min_txt} {s.get('off', '?')} → {s.get('on', '?')} ({s.get('team', '')})")
             lines.append("")
-
-        # Commentary excerpt (first 1500 chars)
-        commentary = (report.get("commentary") or "").strip()
-        if commentary:
-            lines.append("### Match Commentary (excerpt)\n")
-            lines.append(commentary[:1500])
-            if len(commentary) > 1500:
-                lines.append("\n[...commentary continues...]")
 
         return "\n".join(lines)
 
@@ -376,31 +337,6 @@ class PodcastCompiler:
 
         return "\n".join(lines)
 
-    def _section_game_context(self, is_cup: bool) -> str:
-        """Embed relevant manual sections as game rules context."""
-        filenames = _ALWAYS_INCLUDE[:]
-        if is_cup:
-            filenames += _CUP_SECTIONS
-        else:
-            filenames += _LEAGUE_SECTIONS
-
-        lines = ["## PManager Game Rules Context\n"]
-        lines.append(
-            "_The following excerpts from the PManager game manual provide context "
-            "for accurate commentary on tactics, match engine, and competition rules._\n"
-        )
-
-        for fname in filenames:
-            content = _read_manual_section(fname)
-            if content:
-                title = content.splitlines()[0].lstrip("# ").strip() if content.splitlines() else fname
-                lines.append(f"### {title}\n")
-                lines.append(_truncate(content, _MAX_SECTION_CHARS))
-                lines.append("")
-
-        return "\n".join(lines)
-
-
 class RoundCompiler:
     """Compiles a single source document covering all matches in one round."""
 
@@ -419,7 +355,6 @@ class RoundCompiler:
         competition = round_meta.get("competition", "League")
         date        = round_meta.get("date", "")
         summaries   = round_meta.get("match_summaries", [])
-        is_cup      = any(kw in competition.lower() for kw in _CUP_KEYWORDS)
 
         # Fetch all match reports
         reports: list[tuple[dict, dict]] = []  # (summary, report)
@@ -438,8 +373,6 @@ class RoundCompiler:
 
         for summary, report in reports:
             sections.append(self._section_match_report(summary, report))
-
-        sections.append(self._section_game_context(is_cup))
 
         doc = "\n\n---\n\n".join(s for s in sections if s.strip())
         logger.info(
@@ -514,30 +447,5 @@ class RoundCompiler:
                     lines.append(f"- {name}: {rating:.1f}")
             lines.append("")
 
-        # Commentary excerpt
-        commentary = (report.get("commentary") or "").strip()
-        if commentary:
-            lines.append("### Commentary Excerpt\n")
-            lines.append(commentary[:1000])
-            if len(commentary) > 1000:
-                lines.append("\n[...continues...]")
-
         return "\n".join(lines)
 
-    def _section_game_context(self, is_cup: bool) -> str:
-        filenames = _ALWAYS_INCLUDE[:]
-        filenames += _CUP_SECTIONS if is_cup else _LEAGUE_SECTIONS
-
-        lines = ["## PManager Game Rules Context\n"]
-        lines.append(
-            "_Excerpts from the PManager game manual for accurate commentary "
-            "on tactics, match engine, and competition rules._\n"
-        )
-        for fname in filenames:
-            content = _read_manual_section(fname)
-            if content:
-                title = content.splitlines()[0].lstrip("# ").strip() if content.splitlines() else fname
-                lines.append(f"### {title}\n")
-                lines.append(_truncate(content, _MAX_SECTION_CHARS))
-                lines.append("")
-        return "\n".join(lines)

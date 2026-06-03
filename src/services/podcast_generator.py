@@ -9,11 +9,32 @@ generation.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from google import genai
 from google.genai import types
 
 from src.config import config
 from src.core.logger import logger
+
+_MANUAL_DIR = Path(__file__).parent.parent.parent / "docs" / "manual" / "sections"
+_MANUAL_SECTIONS = ["section_13.md", "section_14.md", "section_34.md", "section_20.md"]
+_MAX_SECTION_CHARS = 3000
+
+
+def _load_rules_context() -> str:
+    parts = []
+    for fname in _MANUAL_SECTIONS:
+        path = _MANUAL_DIR / fname
+        try:
+            content = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            continue
+        if len(content) > _MAX_SECTION_CHARS:
+            content = content[:_MAX_SECTION_CHARS].rsplit("\n", 1)[0]
+        parts.append(content)
+    return "\n\n".join(parts)
+
 
 _SYSTEM_PROMPT = """\
 You are a professional football podcast scriptwriter with expertise in football tactics,
@@ -48,6 +69,8 @@ Format each line as:
 Alex: [dialogue]
 Jamie: [dialogue]
 """
+
+_SYSTEM_PROMPT += "\n\n## PManager Game Rules Reference\n\n" + _load_rules_context()
 
 _USER_PROMPT_TEMPLATE = """\
 Generate a complete podcast script for the match described below.
