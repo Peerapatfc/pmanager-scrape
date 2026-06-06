@@ -343,7 +343,7 @@ class RoundCompiler:
     def __init__(self, sm: Any) -> None:
         self.sm = sm
 
-    def compile(self, round_meta: dict) -> str:
+    def compile(self, round_meta: dict, league_stats: dict | None = None) -> str:
         """Build a combined Markdown source document for all matches in a round.
 
         Args:
@@ -351,6 +351,8 @@ class RoundCompiler:
                 - competition (str)
                 - date (str, YYYY-MM-DD)
                 - match_summaries (list of {match_id, home, away, result})
+            league_stats: Optional dict from LeagueStatsScraper.scrape_all().
+                          When provided, league context sections are appended.
         """
         competition = round_meta.get("competition", "League")
         date        = round_meta.get("date", "")
@@ -373,6 +375,17 @@ class RoundCompiler:
 
         for summary, report in reports:
             sections.append(self._section_match_report(summary, report))
+
+        if league_stats:
+            sections.append(self._section_standings(league_stats.get("standings", [])))
+            sections.append(self._section_top_scorers(league_stats.get("top_scorers", [])))
+            sections.append(self._section_top_assists(league_stats.get("top_assists", [])))
+            sections.append(self._section_avg_ratings(league_stats.get("avg_ratings", [])))
+            sections.append(self._section_man_of_match_table(league_stats.get("man_of_match", [])))
+            sections.append(self._section_top_eleven(
+                league_stats.get("top_eleven_week", []),
+                league_stats.get("top_eleven_season", []),
+            ))
 
         doc = "\n\n---\n\n".join(s for s in sections if s.strip())
         logger.info(
@@ -447,5 +460,101 @@ class RoundCompiler:
                     lines.append(f"- {name}: {rating:.1f}")
             lines.append("")
 
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------ #
+    # League context sections (from LeagueStatsScraper)                   #
+    # ------------------------------------------------------------------ #
+
+    def _section_standings(self, rows: list[dict]) -> str:
+        if not rows:
+            return ""
+        lines = ["## League Standings\n"]
+        lines.append("| Pos | Team | P | W | D | L | GF | GA | GD | Pts |")
+        lines.append("|-----|------|---|---|---|---|----|----|-----|-----|")
+        for r in rows:
+            lines.append(
+                f"| {r.get('position','')} | {r.get('team','')} "
+                f"| {r.get('played','')} | {r.get('won','')} | {r.get('drawn','')} "
+                f"| {r.get('lost','')} | {r.get('gf','')} | {r.get('ga','')} "
+                f"| {r.get('gd','')} | {r.get('points','')} |"
+            )
+        return "\n".join(lines)
+
+    def _section_top_scorers(self, rows: list[dict]) -> str:
+        if not rows:
+            return ""
+        lines = ["## Top Scorers\n"]
+        lines.append("| Rank | Name | Team | Pos | Goals |")
+        lines.append("|------|------|------|-----|-------|")
+        for r in rows:
+            lines.append(
+                f"| {r.get('rank','')} | {r.get('name','')} | {r.get('team','')} "
+                f"| {r.get('position','')} | {r.get('Goals','')} |"
+            )
+        return "\n".join(lines)
+
+    def _section_top_assists(self, rows: list[dict]) -> str:
+        if not rows:
+            return ""
+        lines = ["## Top Assists\n"]
+        lines.append("| Rank | Name | Team | Pos | Assists |")
+        lines.append("|------|------|------|-----|---------|")
+        for r in rows:
+            lines.append(
+                f"| {r.get('rank','')} | {r.get('name','')} | {r.get('team','')} "
+                f"| {r.get('position','')} | {r.get('Top Assists','')} |"
+            )
+        return "\n".join(lines)
+
+    def _section_avg_ratings(self, rows: list[dict]) -> str:
+        if not rows:
+            return ""
+        lines = ["## Best Average Ratings\n"]
+        lines.append("| Rank | Name | Team | Pos | Rating |")
+        lines.append("|------|------|------|-----|--------|")
+        for r in rows:
+            lines.append(
+                f"| {r.get('rank','')} | {r.get('name','')} | {r.get('team','')} "
+                f"| {r.get('position','')} | {r.get('Average Rating','')} |"
+            )
+        return "\n".join(lines)
+
+    def _section_man_of_match_table(self, rows: list[dict]) -> str:
+        if not rows:
+            return ""
+        lines = ["## Man of the Match Awards\n"]
+        lines.append("| Rank | Name | Team | Pos | Times |")
+        lines.append("|------|------|------|-----|-------|")
+        for r in rows:
+            lines.append(
+                f"| {r.get('rank','')} | {r.get('name','')} | {r.get('team','')} "
+                f"| {r.get('position','')} | {r.get('Occasions','')} |"
+            )
+        return "\n".join(lines)
+
+    def _section_top_eleven(self, week: list[dict], season: list[dict]) -> str:
+        if not week and not season:
+            return ""
+        lines = ["## Top Eleven\n"]
+        if week:
+            lines.append("### Week\n")
+            lines.append("| Name | Team | Pos | Rating |")
+            lines.append("|------|------|-----|--------|")
+            for r in week:
+                lines.append(
+                    f"| {r.get('name','')} | {r.get('team','')} "
+                    f"| {r.get('position','')} | {r.get('rating','')} |"
+                )
+            lines.append("")
+        if season:
+            lines.append("### Season\n")
+            lines.append("| Name | Team | Pos | Rating |")
+            lines.append("|------|------|-----|--------|")
+            for r in season:
+                lines.append(
+                    f"| {r.get('name','')} | {r.get('team','')} "
+                    f"| {r.get('position','')} | {r.get('rating','')} |"
+                )
         return "\n".join(lines)
 

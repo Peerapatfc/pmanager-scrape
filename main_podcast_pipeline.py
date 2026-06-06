@@ -25,6 +25,7 @@ from pathlib import Path
 
 from src.config import config
 from src.core.logger import logger
+from src.scrapers.league_stats import LeagueStatsScraper
 from src.scrapers.match_report import MatchReportScraper
 from src.services.podcast_compiler import RoundCompiler
 from src.services.podcast_generator import PodcastGenerator
@@ -236,6 +237,7 @@ def _process_round(
     generator: PodcastGenerator,
     bot: TelegramBot | None,
     source_only: bool = False,
+    league_stats: dict | None = None,
 ) -> bool:
     """Compile + (optionally) generate + save one round. Returns True on success."""
     rkey        = round_meta["round_key"]
@@ -253,7 +255,7 @@ def _process_round(
 
     # Compile
     try:
-        source_doc = compiler.compile(round_meta)
+        source_doc = compiler.compile(round_meta, league_stats=league_stats)
     except Exception as exc:
         logger.error("Compile failed for round %s: %s", rkey, exc)
         _alert_failure(bot, f"Compile failed for {competition} {date}: {exc}")
@@ -349,9 +351,10 @@ def main() -> None:
 
     logger.info("Found %d pending match(es) to scrape.", len(pending))
 
-    # ---- Phase 1: scrape all matches --------------------------------
+    # ---- Phase 1: scrape all matches + league stats -----------------
     scraped_fixtures: list[dict] = []
     failed_scrape = 0
+    league_stats: dict | None = None
 
     with MatchReportScraper() as scraper:
         scraper.login(config.PM_USERNAME, config.PM_PASSWORD)
@@ -374,6 +377,16 @@ def main() -> None:
             else:
                 failed_scrape += 1
 
+        # Scrape league-wide stats for source document enrichment
+        try:
+            stats_scraper = LeagueStatsScraper()
+            stats_scraper.page = scraper.page  # reuse authenticated browser page
+            league_stats = stats_scraper.scrape_all()
+            logger.info("League stats scraped successfully.")
+        except Exception as exc:
+            logger.warning("League stats scrape failed (non-fatal): %s", exc)
+            league_stats = None
+
     if not scraped_fixtures:
         logger.error("No matches scraped successfully.")
         sys.exit(1)
@@ -386,7 +399,7 @@ def main() -> None:
     fail_count    = failed_scrape
 
     for round_meta in rounds:
-        ok = _process_round(round_meta, sm, compiler, gen, bot, source_only=args.source_only)
+        ok = _process_round(round_meta, sm, compiler, gen, bot, source_only=args.source_only, league_stats=league_stats)
         if ok:
             success_count += 1
         else:
