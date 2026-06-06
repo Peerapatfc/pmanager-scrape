@@ -187,15 +187,26 @@ export default function PodcastsClient({ rounds }: { rounds: RoundRow[] }) {
     setSpeaking(false)
   }
 
+  async function parseJsonSafe(res: Response): Promise<{ ok: boolean; data: Record<string, unknown>; error: string }> {
+    const text = await res.text()
+    try {
+      const data = JSON.parse(text) as Record<string, unknown>
+      return { ok: res.ok, data, error: res.ok ? "" : (String(data.error ?? `HTTP ${res.status}`)) }
+    } catch {
+      return { ok: false, data: {}, error: `Server error ${res.status} (non-JSON response — check SUPABASE_KEY env var on Vercel)` }
+    }
+  }
+
   async function handleCompile() {
     if (!selectedKey) return
     setCompiling(true)
     setActionError(null)
     try {
       const res = await fetch(`/api/podcasts/${encodeURIComponent(selectedKey)}/compile`, { method: "POST" })
-      const json = await res.json()
-      if (!res.ok) { setActionError(json.error ?? "Compile failed"); return }
-      setContent((prev) => prev ? { ...prev, source_doc: json.source_doc } : { podcast_script: null, source_doc: json.source_doc })
+      const { ok, data, error } = await parseJsonSafe(res)
+      if (!ok) { setActionError(error); return }
+      const sourceDoc = data.source_doc as string | null
+      setContent((prev) => prev ? { ...prev, source_doc: sourceDoc } : { podcast_script: null, source_doc: sourceDoc })
       setTab("source")
     } catch (e) {
       setActionError(String(e))
@@ -210,9 +221,10 @@ export default function PodcastsClient({ rounds }: { rounds: RoundRow[] }) {
     setActionError(null)
     try {
       const res = await fetch(`/api/podcasts/${encodeURIComponent(selectedKey)}/generate`, { method: "POST" })
-      const json = await res.json()
-      if (!res.ok) { setActionError(json.error ?? "Generate failed"); return }
-      setContent((prev) => prev ? { ...prev, podcast_script: json.podcast_script } : { podcast_script: json.podcast_script, source_doc: null })
+      const { ok, data, error } = await parseJsonSafe(res)
+      if (!ok) { setActionError(error); return }
+      const script = data.podcast_script as string | null
+      setContent((prev) => prev ? { ...prev, podcast_script: script } : { podcast_script: script, source_doc: null })
       setTab("script")
     } catch (e) {
       setActionError(String(e))

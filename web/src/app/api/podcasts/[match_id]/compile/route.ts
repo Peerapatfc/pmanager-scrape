@@ -106,45 +106,45 @@ export async function POST(
   _req: Request,
   { params }: { params: Promise<{ match_id: string }> },
 ) {
-  const { match_id: roundKey } = await params
-  const supabase = db()
+  try {
+    const { match_id: roundKey } = await params
+    const supabase = db()
+    const key = decodeURIComponent(roundKey)
 
-  const { data: round } = await supabase
-    .from("round_reports")
-    .select("competition, date, match_summaries")
-    .eq("round_key", decodeURIComponent(roundKey))
-    .single()
+    const { data: round, error: roundErr } = await supabase
+      .from("round_reports")
+      .select("competition, date, match_summaries")
+      .eq("round_key", key)
+      .single()
 
-  if (!round) {
-    return NextResponse.json({ error: "Round not found" }, { status: 404 })
+    if (roundErr || !round) {
+      return NextResponse.json({ error: roundErr?.message ?? "Round not found" }, { status: 404 })
+    }
+
+    const summaries: Summary[] = round.match_summaries ?? []
+    const matchIds = summaries.map((s) => String(s.match_id))
+
+    const { data: matchReports } = await supabase
+      .from("match_reports")
+      .select(
+        "match_id, home_score, away_score, goalscorers, home_formation, away_formation, home_style, away_style, home_at_settings, away_at_settings, player_ratings, man_of_match",
+      )
+      .in("match_id", matchIds)
+
+    const reportMap = new Map<string, Report>()
+    for (const r of matchReports ?? []) {
+      reportMap.set(String(r.match_id), r as Report)
+    }
+
+    const sourceDoc = compileSourceDoc(round.competition, round.date, summaries, reportMap)
+
+    await supabase
+      .from("round_reports")
+      .update({ source_doc: sourceDoc })
+      .eq("round_key", key)
+
+    return NextResponse.json({ source_doc: sourceDoc })
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 500 })
   }
-
-  const summaries: Summary[] = round.match_summaries ?? []
-  const matchIds = summaries.map((s) => String(s.match_id))
-
-  const { data: matchReports } = await supabase
-    .from("match_reports")
-    .select(
-      "match_id, home_score, away_score, goalscorers, home_formation, away_formation, home_style, away_style, home_at_settings, away_at_settings, player_ratings, man_of_match",
-    )
-    .in("match_id", matchIds)
-
-  const reportMap = new Map<string, Report>()
-  for (const r of matchReports ?? []) {
-    reportMap.set(String(r.match_id), r as Report)
-  }
-
-  const sourceDoc = compileSourceDoc(
-    round.competition,
-    round.date,
-    summaries,
-    reportMap,
-  )
-
-  await supabase
-    .from("round_reports")
-    .update({ source_doc: sourceDoc })
-    .eq("round_key", decodeURIComponent(roundKey))
-
-  return NextResponse.json({ source_doc: sourceDoc })
 }

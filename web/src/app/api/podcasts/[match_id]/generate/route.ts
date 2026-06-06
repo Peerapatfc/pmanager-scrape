@@ -103,36 +103,33 @@ export async function POST(
   _req: Request,
   { params }: { params: Promise<{ match_id: string }> },
 ) {
-  const { match_id: roundKey } = await params
-  const supabase = db()
-
-  const { data: round } = await supabase
-    .from("round_reports")
-    .select("source_doc")
-    .eq("round_key", decodeURIComponent(roundKey))
-    .single()
-
-  if (!round?.source_doc) {
-    return NextResponse.json(
-      { error: "Source doc not found — compile first" },
-      { status: 404 },
-    )
-  }
-
-  let script: string
   try {
-    script = await callGemini(round.source_doc)
+    const { match_id: roundKey } = await params
+    const supabase = db()
+    const key = decodeURIComponent(roundKey)
+
+    const { data: round, error: roundErr } = await supabase
+      .from("round_reports")
+      .select("source_doc")
+      .eq("round_key", key)
+      .single()
+
+    if (roundErr || !round?.source_doc) {
+      return NextResponse.json(
+        { error: roundErr?.message ?? "Source doc not found — compile first" },
+        { status: 404 },
+      )
+    }
+
+    const script = await callGemini(round.source_doc)
+
+    await supabase
+      .from("round_reports")
+      .update({ podcast_script: script, generated_at: new Date().toISOString() })
+      .eq("round_key", key)
+
+    return NextResponse.json({ podcast_script: script })
   } catch (err) {
-    return NextResponse.json(
-      { error: String(err) },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: String(err) }, { status: 500 })
   }
-
-  await supabase
-    .from("round_reports")
-    .update({ podcast_script: script, generated_at: new Date().toISOString() })
-    .eq("round_key", decodeURIComponent(roundKey))
-
-  return NextResponse.json({ podcast_script: script })
 }
