@@ -170,6 +170,12 @@ class SupabaseManager:
             if "id" not in row or not row["id"]:
                 continue
 
+            # ponytail: skip unscouted players — all numeric skills zero means PManager showed "?"
+            numeric_vals = [v for v in skills.values() if isinstance(v, (int, float))]
+            if numeric_vals and all(v == 0 for v in numeric_vals):
+                logger.debug("Skipping player %s: all skills zero (unscouted)", row.get("id"))
+                continue
+
             row["id"] = str(row["id"])
             self._coerce_record(row)
             rows.append(row)
@@ -179,6 +185,29 @@ class SupabaseManager:
 
         self._upsert_batched("players", rows)
         logger.info("Upserted %d rows to 'players'", len(rows))
+
+    def delete_zero_skill_players(self) -> int:
+        """Remove players whose numeric skills are all zero (unscouted)."""
+        resp = self.client.table("players").select("id, skills").execute()
+        all_players = resp.data or []
+
+        to_delete = []
+        for p in all_players:
+            skills = p.get("skills") or {}
+            nums = [v for v in skills.values() if isinstance(v, (int, float))]
+            if not nums or all(v == 0 for v in nums):
+                to_delete.append(p["id"])
+
+        if not to_delete:
+            logger.info("No zero-skill players to clean up.")
+            return 0
+
+        for i in range(0, len(to_delete), 500):
+            batch = to_delete[i : i + 500]
+            self.client.table("players").delete().in_("id", batch).execute()
+
+        logger.info("Deleted %d zero-skill players.", len(to_delete))
+        return len(to_delete)
 
     def get_all_players(self) -> list[dict[str, Any]]:
         """Fetch all player records from the ``players`` table.

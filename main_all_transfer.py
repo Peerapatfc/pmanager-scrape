@@ -121,7 +121,7 @@ def main() -> None:
     # All players (attributes only — no financial columns)
     drop_cols = [
         "estimated_value", "asking_price", "buy_price", "value_diff",
-        "roi", "bids_count", "forecast_sell",
+        "roi", "bids_count", "forecast_sell", "forecast_profit",
     ]
     attr_cols = [c for c in df.columns if c not in drop_cols]
     db.upsert_players(df[attr_cols].to_dict(orient="records"))
