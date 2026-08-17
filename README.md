@@ -117,4 +117,4 @@ graph TD
 3.  **Storage**:
     *   `transfer_targets_all.csv` (Local backup)
     *   Google Sheets: "All Players" (Historical db), "Transfer Info" (Current market)
-4.  **Action**: `ai_recommendation.py` reads "Transfer Info", checks against your current "Available Funds" in "Team Info", and alerts you to the best deals ending soon.
+4.  **Action**: `ai_recommendation.py` reads "Transfer Info", checks against your current "Available Funds" in "Team Info", and alerts you to the best deals ending soon..
