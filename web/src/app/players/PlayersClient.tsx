@@ -124,6 +124,9 @@ export default function PlayersClient() {
           <p className="text-neutral-400 mt-2">
             Showing {players.length} of {totalCount} players.
           </p>
+          <p className="text-neutral-500 text-xs mt-1">
+            ★ maxed · ▲ rose · ▼ dropped at last training (as of last scrape; no mark = not maxed, or not read yet)
+          </p>
         </div>
 
         {/* Controls */}
@@ -316,7 +319,11 @@ export default function PlayersClient() {
                     }
                     return (
                       <td key={field} className={`px-1 py-1 border-r border-neutral-800/60 ${isHighlighted ? "ring-1 ring-inset ring-emerald-500/30" : ""}`}>
-                        <SkillChip value={value} title={`${field}: ${value}`} />
+                        <SkillChip
+                          value={value}
+                          flag={player.skill_flags?.[field]}
+                          title={`${field}: ${value}${player.skill_flags?.[field] ? ` (${player.skill_flags[field]})` : ""}`}
+                        />
                       </td>
                     );
                   })}

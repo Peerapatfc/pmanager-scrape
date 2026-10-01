@@ -7,6 +7,7 @@ auction deadlines) that are used across multiple scrapers and entry scripts.
 
 import re
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 
 def parse_deadline(deadline_str: str | None) -> datetime | None:
@@ -96,3 +97,31 @@ def clean_currency(value_str: str | None) -> float:
         return 0.0
     clean = re.sub(r"[^\d]", "", str(value_str))
     return float(clean) if clean else 0.0
+
+
+_FLAG_BY_COLOR = {"blue": "max", "green": "up", "red": "down"}
+
+
+def parse_skill_flags(soup: Any) -> dict[str, str]:
+    """Read skill state from the colour of the level word on ``ver_jogador.asp``.
+
+    Blue = maxed, green = rose at the last training, red = dropped at the last
+    training. Skills without a colour are left out.
+
+    Args:
+        soup: BeautifulSoup of a player profile page.
+
+    Returns:
+        Skill name -> ``"max"`` | ``"up"`` | ``"down"``.
+    """
+    flags: dict[str, str] = {}
+    for tr in soup.find_all("tr"):
+        # Skill row: name | bar | value | level word (in <font color=...>)
+        cells = tr.find_all("td", recursive=False)
+        if len(cells) != 4 or not cells[2].get_text(strip=True).isdigit():
+            continue
+        font = cells[3].find("font")
+        flag = _FLAG_BY_COLOR.get((font.get("color") or "").lower()) if font else None
+        if flag:
+            flags[cells[0].get_text(strip=True)] = flag
+    return flags

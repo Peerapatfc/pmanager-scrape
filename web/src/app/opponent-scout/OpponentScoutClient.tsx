@@ -29,7 +29,7 @@ import { supabase } from "@/lib/supabase";
 import { PAGE_SIZE, DEBOUNCE_MS, POSITIONS } from "@/lib/constants";
 import { formatDeadline, qualityColor } from "@/lib/utils";
 import { FORMATIONS, slotToGroup } from "@/lib/formations";
-import type { OpponentScoutResult, Player, SavedLineup } from "@/types";
+import { SKILL_FLAG_MARK, type OpponentScoutResult, type Player, type SavedLineup } from "@/types";
 
 // ── AT Matchup types & helpers ────────────────────────────────────────────────
 interface MySquadPlayer { id: string; name?: string; position: string; skills: Record<string, number> }
@@ -1703,7 +1703,10 @@ export default function OpponentScoutClient() {
                                               className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-neutral-800 border border-neutral-700/50 text-xs"
                                             >
                                               <span className="text-neutral-400">{skill}</span>
-                                              <span className="font-bold text-emerald-400">{value}</span>
+                                              <span className="font-bold text-emerald-400">
+                                                {value}
+                                                {dbPlayer.skill_flags?.[skill] && SKILL_FLAG_MARK[dbPlayer.skill_flags[skill]]}
+                                              </span>
                                             </span>
                                           ))}
                                       </div>

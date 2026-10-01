@@ -11,7 +11,7 @@ from typing import Any
 from bs4 import BeautifulSoup
 
 from src.core.logger import logger
-from src.core.utils import clean_currency
+from src.core.utils import clean_currency, parse_skill_flags
 from src.scrapers.base import BaseScraper
 
 
@@ -245,6 +245,8 @@ class TransferScraper(BaseScraper):
                     data[skill_name] = skill_value
                 elif "Fitness" in skill_name and siblings:
                     data[skill_name] = siblings[0].get_text(strip=True)
+
+        data["skill_flags"] = parse_skill_flags(soup)
 
         for label in ["Quality", "Potential", "Affected Quality"]:
             if label not in data:

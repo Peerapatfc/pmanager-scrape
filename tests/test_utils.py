@@ -6,7 +6,9 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from src.core.utils import clean_currency, parse_deadline
+from bs4 import BeautifulSoup
+
+from src.core.utils import clean_currency, parse_deadline, parse_skill_flags
 
 
 class TestCleanCurrency:
@@ -98,3 +100,31 @@ class TestParseDeadline:
         assert result is not None
         assert result.hour == 15
         assert result.minute == 45
+
+
+def _skill_row(name: str, value: str, color: str) -> str:
+    # Trimmed from a real ver_jogador.asp skill row.
+    return (
+        f'<tr><td class="list1"><b>{name}</b></td><td class="list1"><img src="img/bluebar.png"></td>'
+        f'<td class="list1" align="center">{value}</td>'
+        f'<td class="list1"><div class="team_players"><font color="{color}">World Class</font></div></td></tr>'
+    )
+
+
+class TestParseSkillFlags:
+    """Tests for parse_skill_flags()."""
+
+    def test_colours_map_to_flags(self) -> None:
+        html = "<table>" + "".join([
+            '<tr><td class="team_players"><b>Value</b></td><td>&nbsp;</td>'
+            '<td class="team_players">66.739.400 baht</td><td colspan="4">&nbsp;</td></tr>',
+            _skill_row("Passing", "20", "blue"),
+            _skill_row("Positioning", "20", ""),
+            _skill_row("Tackling", "15", "green"),
+            _skill_row("Speed", "6", "red"),
+        ]) + "</table>"
+        flags = parse_skill_flags(BeautifulSoup(html, "html.parser"))
+        assert flags == {"Passing": "max", "Tackling": "up", "Speed": "down"}
+
+    def test_no_skills_visible(self) -> None:
+        assert parse_skill_flags(BeautifulSoup("<table><tr><td>?</td></tr></table>", "html.parser")) == {}

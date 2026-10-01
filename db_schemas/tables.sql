@@ -18,8 +18,12 @@ CREATE TABLE IF NOT EXISTS players (
     url TEXT,
     last_transfer_price BIGINT DEFAULT 0,
     sale_to_bid_ratio REAL DEFAULT 0,
+    -- skill name -> "max" | "up" | "down" (profile page colours: blue / green / red) at scrape time.
+    -- NULL = never scraped from a profile page, so unknown.
+    skill_flags JSONB,
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+-- Existing databases: ALTER TABLE players ADD COLUMN IF NOT EXISTS skill_flags JSONB;
 
 -- 2. Transfer Listings (replaces "Transfer Info" sheet)
 CREATE TABLE IF NOT EXISTS transfer_listings (

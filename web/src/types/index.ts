@@ -6,6 +6,11 @@
  */
 
 /** A player record from the `players` table. */
+/** Profile page colours: blue = maxed, green = rose / red = dropped at the last training. */
+export type SkillFlag = "max" | "up" | "down";
+
+export const SKILL_FLAG_MARK: Record<SkillFlag, string> = { max: "★", up: "▲", down: "▼" };
+
 export interface Player {
   id: string;
   name: string;
@@ -17,6 +22,8 @@ export interface Player {
   affected_quality?: string;
   /** Dynamic skill attributes stored as JSONB. */
   skills: Record<string, number>;
+  /** Skill name -> state at scrape time (profile colours). null = never read, so unknown. */
+  skill_flags?: Record<string, SkillFlag> | null;
   bids_count: number;
   bids_avg: number;
   last_transfer_price: number;

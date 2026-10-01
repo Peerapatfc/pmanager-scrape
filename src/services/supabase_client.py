@@ -144,13 +144,13 @@ class SupabaseManager:
             "id", "name", "position", "age", "nationality",
             "Quality", "Potential", "Affected Quality",
             "bids_count", "bids_avg", "deadline", "url",
-            "last_transfer_price", "sale_to_bid_ratio",
+            "last_transfer_price", "sale_to_bid_ratio", "skill_flags",
         }
         KNOWN_DB_COLS = {
             "id", "name", "position", "age", "nationality",
             "quality", "potential", "affected_quality",
             "bids_count", "bids_avg", "deadline", "url",
-            "last_transfer_price", "sale_to_bid_ratio",
+            "last_transfer_price", "sale_to_bid_ratio", "skill_flags",
         }
 
         rows: list[dict[str, Any]] = []

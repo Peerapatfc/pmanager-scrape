@@ -1,11 +1,13 @@
 import { skillTier } from "@/lib/skillTier";
+import { SKILL_FLAG_MARK, type SkillFlag } from "@/types";
 
 interface SkillChipProps {
   value: number;
   title?: string;
+  flag?: SkillFlag;
 }
 
-export function SkillChip({ value, title }: SkillChipProps) {
+export function SkillChip({ value, title, flag }: SkillChipProps) {
   const tier = skillTier(value);
   return (
     <div
@@ -14,6 +16,7 @@ export function SkillChip({ value, title }: SkillChipProps) {
       title={title ?? `${value} — ${tier.label}`}
     >
       {value}
+      {flag && <span className="ml-0.5 text-[8px]">{SKILL_FLAG_MARK[flag]}</span>}
     </div>
   );
 }
