@@ -54,6 +54,12 @@ def main() -> None:
     ]
     db.upsert_my_squad(squad_records)
 
+    # Skill history for the PManager Helper extension; never fail the sync over it.
+    try:
+        db.record_skill_history(records)
+    except Exception as e:
+        logger.error("Skill history snapshot failed: %s", e)
+
     logger.info("Squad sync complete — %d players synced.", len(records))
 
 

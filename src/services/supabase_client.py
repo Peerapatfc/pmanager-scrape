@@ -21,6 +21,7 @@ from supabase import create_client
 from src import constants
 from src.config import config
 from src.core.logger import logger
+from src.services.skill_history import build_skill_history_rows
 
 
 class SupabaseManager:
@@ -571,6 +572,43 @@ class SupabaseManager:
         except Exception as e:
             logger.error("Failed to fetch opponent_scout_results: %s", e)
             return []
+
+    # ------------------------------------------------------------------
+    # ext_skill_history table (PManager Helper extension)
+    # ------------------------------------------------------------------
+
+    def record_skill_history(self, records: list[dict[str, Any]]) -> int:
+        """Add today's squad skills to ``ext_skill_history`` where they changed.
+
+        Args:
+            records: Squad scraper output.
+
+        Returns:
+            Number of rows written.
+        """
+        latest: dict[int, list[int]] = {}
+        offset = 0
+        while True:
+            page = (
+                self.client.table("ext_skill_history")
+                .select("player_id, skills")
+                .order("day")
+                .range(offset, offset + 999)
+                .execute()
+                .data
+            )
+            for row in page:  # ordered by day, so the last one per player wins
+                latest[row["player_id"]] = row["skills"]
+            if len(page) < 1000:
+                break
+            offset += 1000
+
+        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        rows = build_skill_history_rows(records, latest, day)
+        if rows:
+            self._upsert_batched("ext_skill_history", rows)
+        logger.info("Skill history: %d changed players recorded for %s", len(rows), day)
+        return len(rows)
 
     # ------------------------------------------------------------------
     # my_squad table
