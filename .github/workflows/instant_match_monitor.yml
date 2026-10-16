@@ -1,8 +1,9 @@
 name: Instant Match Monitor
 
 on:
-  schedule:
-    - cron: '*/30 * * * *' # Every 30 minutes
+  # Schedule disabled; re-enable by uncommenting.
+  # schedule:
+  #   - cron: '*/30 * * * *' # Every 30 minutes
   workflow_dispatch:
 
 jobs:

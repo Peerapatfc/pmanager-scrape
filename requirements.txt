@@ -6,7 +6,6 @@ gspread
 google-auth
 supabase
 requests
-google-genai
 
 # Dev / testing
 pytest>=7.4

@@ -31,3 +31,7 @@ reports/
 .superpowers/
 superpowers/
 .worktrees/
+
+# Personal match/scouting data
+output/
+source_docs/
