@@ -14,6 +14,7 @@ import re
 from bs4 import BeautifulSoup
 
 from src.core.logger import logger
+from src.core.report_html import match_from_html
 from src.scrapers.base import BaseScraper
 
 # Cup keywords in match_type to distinguish cup from league fixtures
@@ -186,7 +187,10 @@ class MatchReportScraper(BaseScraper):
                 report["away_at_settings"]["long_shots"] = away_val.lower() == "yes"
 
     def _extract_commentary(self, soup: BeautifulSoup) -> str:
-        """Find the longest text block (the match commentary narrative)."""
+        """Find the match commentary narrative (the Comments feed on the redesigned page, else the longest text block)."""
+        feed = soup.select("#comments li.rf-item")
+        if feed:
+            return " ".join(li.get_text(separator=" ", strip=True) for li in feed)
         best = ""
         for tag in soup.find_all(["td", "div", "p"]):
             txt = tag.get_text(separator=" ", strip=True)
@@ -197,7 +201,36 @@ class MatchReportScraper(BaseScraper):
         return best
 
     def _parse_goals_from_json(self, soup: BeautifulSoup) -> list[dict]:
-        """Extract goalscorers from the pm-match-report JSON blob embedded in page scripts."""
+        """Extract goalscorers from the pm-match-report JSON blob, or from the HTML of the redesigned page."""
+        match = self._match_data(soup)
+        if not match:
+            return []
+        home_obj = match.get("homeTeam", {})
+        away_obj = match.get("awayTeam", {})
+        home_id = home_obj.get("id")
+        home_nm = home_obj.get("name", "")
+        away_nm = away_obj.get("name", "")
+
+        player_map: dict[int, str] = {}
+        for side in ("homeFormation", "awayFormation"):
+            for p in match.get(side, {}).get("startingEleven", []):
+                player_map[p["playerId"]] = p["playerName"]
+            for p in match.get(side, {}).get("substitutions", []):
+                player_map[p["playerId"]] = p["playerName"]
+
+        goals = []
+        for ev in match.get("events", []):
+            if ev.get("typeId") != 7:
+                continue
+            goals.append({
+                "team":        home_nm if ev.get("teamId") == home_id else away_nm,
+                "player_name": player_map.get(ev.get("playerId"), str(ev.get("playerId") or "")),
+                "minute":      ev.get("timeInMinutes"),
+            })
+        return goals
+
+    def _match_data(self, soup: BeautifulSoup) -> dict | None:
+        """The ``match`` dict: from the embedded JSON when the page has it, else rebuilt from the HTML."""
         marker = '"pm-match-report",'
         for script in soup.find_all("script"):
             text = script.string or ""
@@ -209,35 +242,9 @@ class MatchReportScraper(BaseScraper):
             try:
                 data, _ = json.JSONDecoder().raw_decode(text, idx)
             except (json.JSONDecodeError, ValueError):
-                return []
-
-            match    = data.get("match", {})
-            home_obj = match.get("homeTeam", {})
-            away_obj = match.get("awayTeam", {})
-            home_id  = home_obj.get("id")
-            _away_id = away_obj.get("id")
-            home_nm  = home_obj.get("name", "")
-            away_nm  = away_obj.get("name", "")
-
-            player_map: dict[int, str] = {}
-            for side in ("homeFormation", "awayFormation"):
-                for p in match.get(side, {}).get("startingEleven", []):
-                    player_map[p["playerId"]] = p["playerName"]
-                for p in match.get(side, {}).get("substitutions", []):
-                    player_map[p["playerId"]] = p["playerName"]
-
-            goals = []
-            for ev in match.get("events", []):
-                if ev.get("typeId") != 7:
-                    continue
-                goals.append({
-                    "team":        home_nm if ev.get("teamId") == home_id else away_nm,
-                    "player_name": player_map.get(ev["playerId"], str(ev["playerId"])),
-                    "minute":      ev.get("timeInMinutes"),
-                })
-            return goals
-
-        return []
+                return None
+            return data.get("match", {})
+        return match_from_html(soup)
 
     def _parse_goals(self, soup: BeautifulSoup, commentary: str) -> list[dict]:
         """Extract goalscorer events — primary: JSON blob; fallback: commentary."""
@@ -269,6 +276,20 @@ class MatchReportScraper(BaseScraper):
     def _parse_substitutions(self, soup: BeautifulSoup, commentary: str) -> list[dict]:
         """Extract substitution events."""
         subs: list[dict] = []
+
+        # Redesigned page: .mr-sub cards (data-out = h|a + slot, ↑ minute, in / out links)
+        for card in soup.select(".mr-sub"):
+            on = card.select_one(".mr-sub__title a")
+            off = card.select_one(".mr-sub__out a")
+            minute = re.search(r"\d+", card.select_one(".mr-sub__in").get_text() if card.select_one(".mr-sub__in") else "")
+            subs.append({
+                "team":   "home" if card.get("data-out", "").startswith("h") else "away",
+                "off":    off.get_text(strip=True) if off else "",
+                "on":     on.get_text(strip=True) if on else "",
+                "minute": int(minute.group()) if minute else None,
+            })
+        if subs:
+            return subs
 
         # Strategy 1: events table with substitution/change rows
         for table in soup.find_all("table"):
@@ -310,6 +331,20 @@ class MatchReportScraper(BaseScraper):
         """Extract player name → rating from ratings table if present."""
         ratings: dict[str, float] = {}
 
+        # Redesigned page: a rating badge on every player on the pitch and on each substitute card
+        for badge in soup.select(".mr-pp__rating, .mr-sub__rating"):
+            holder = badge.find_parent(class_=["mr-pp", "mr-sub"])
+            name_tag = holder.select_one(".mr-pp__name, .mr-sub__title a") if holder else None
+            name = (name_tag.get("title") or name_tag.get_text(strip=True)) if name_tag else ""
+            try:
+                value = float(re.sub(r"[^\d,.]", "", badge.get_text()).replace(",", "."))
+            except ValueError:
+                continue
+            if name and 0 < value <= 10:
+                ratings[name] = value
+        if ratings:
+            return ratings
+
         for table in soup.find_all("table"):
             txt = table.get_text(separator=" ", strip=True)
             # Ratings tables typically have headers like "Player" and "Rating"
@@ -333,6 +368,10 @@ class MatchReportScraper(BaseScraper):
 
     def _parse_man_of_match(self, soup: BeautifulSoup, commentary: str) -> str | None:
         """Extract man of the match from page or commentary."""
+        # Redesigned page: the player card marked as man of the match
+        mom = soup.select_one(".mr-pp--mom .mr-pp__name")
+        if mom and (mom.get("title") or mom.get_text(strip=True)):
+            return (mom.get("title") or mom.get_text(strip=True)).strip()[:60]
         # Look for "Man of the Match", "Best Player", "MVP" text
         patterns = [
             r"man\s+of\s+the\s+match[:\s]+([A-Z][a-zA-Z\s\-\.]+)",

@@ -20,6 +20,7 @@ from typing import Any
 from bs4 import BeautifulSoup
 
 from src.core.logger import logger
+from src.core.report_html import match_from_html
 from src.scrapers.base import BaseScraper
 
 # ── Stats-tab label → (field_name, value_type) ───────────────────────────────
@@ -305,13 +306,20 @@ class LeagueFixturesScraper(BaseScraper):
                 return data
             except (json.JSONDecodeError, ValueError):
                 logger.warning("JSON decode failed for match blob")
-        return None
+        # The redesigned report page has no JSON blob: rebuild it from the HTML.
+        match = match_from_html(soup)
+        return {"match": match} if match else None
 
     def _extract_competition(self, soup: BeautifulSoup) -> str:
         """Extract competition name from the match type cell.
 
         Match type cell text: "League (Thailand) - Thai League , 12 round"
         """
+        meta = soup.find("span", attrs={"title": "Match Type"})  # redesigned page
+        if meta and meta.get_text(strip=True):
+            text = meta.get_text(strip=True)
+            m = re.search(r"-\s+(.+?)\s*,", text)
+            return m.group(1).strip() if m else text
         for td in soup.find_all("td", class_="team_players"):
             text = td.get_text(strip=True)
             if "League" in text and "round" in text:
