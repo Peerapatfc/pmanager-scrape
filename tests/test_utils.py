@@ -8,7 +8,7 @@ import pytest
 
 from bs4 import BeautifulSoup
 
-from src.core.utils import clean_currency, parse_deadline, parse_skill_flags
+from src.core.utils import clean_currency, parse_deadline, parse_skill_flags, read_stat
 
 
 class TestCleanCurrency:
@@ -128,3 +128,32 @@ class TestParseSkillFlags:
 
     def test_no_skills_visible(self) -> None:
         assert parse_skill_flags(BeautifulSoup("<table><tr><td>?</td></tr></table>", "html.parser")) == {}
+
+
+NEGOTIATION_HTML = """
+<section class="cj-hero"><div class="cj-clock"><span class="cj-clock__lab">Deadline</span>
+<b class="cj-clock__left"> 12 minutes</b> <span class="cj-clock__at">Today at 17:08</span></div></section>
+<ul><li><a href="propostas.asp">Bids</a></li></ul>
+<div class="cj-chips"><button class="cj-chip"><span>Estimated Transfer Value</span><b>39.350.050 baht</b></button></div>
+<div class="cj-stat"><span>Bids</span><b>0</b></div>
+<div class="cj-stat"><span>Bids Average (Scout)</span><b>-</b></div>
+<div class="cj-ask"><span>Asking Price for Bid</span><b>500.000.000 baht</b></div>
+"""
+
+
+class TestReadStat:
+    """Tests for read_stat() on the redesigned negotiation page."""
+
+    def setup_method(self) -> None:
+        self.soup = BeautifulSoup(NEGOTIATION_HTML, "html.parser")
+
+    def test_reads_value_after_label(self) -> None:
+        assert read_stat(self.soup, "Estimated Transfer Value") == "39.350.050 baht"
+        assert clean_currency(read_stat(self.soup, "Asking Price for Bid")) == 500_000_000.0
+
+    def test_bids_ignores_the_navigation_link(self) -> None:
+        assert read_stat(self.soup, "Bids") == "0"
+        assert read_stat(self.soup, "Bids Average (Scout)") == "-"
+
+    def test_missing_label_returns_none(self) -> None:
+        assert read_stat(self.soup, "Nope") is None

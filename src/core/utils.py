@@ -99,6 +99,28 @@ def clean_currency(value_str: str | None) -> float:
     return float(clean) if clean else 0.0
 
 
+def read_stat(soup: Any, label: str) -> str | None:
+    """Read a ``<span>label</span><b>value</b>`` pair from the negotiation page.
+
+    ``comprar_jog_lista.asp`` shows its figures this way (Estimated Transfer Value,
+    Asking Price for Bid, Bids, Bids Average (Scout)); the older layout used table
+    cells, which callers fall back to when this returns ``None``.
+
+    Args:
+        soup: BeautifulSoup of the negotiation page.
+        label: Exact label text.
+
+    Returns:
+        The value text, or ``None`` when no such pair is on the page.
+    """
+    for span in soup.find_all("span"):
+        if span.get_text(strip=True) == label:
+            b = span.find_next_sibling("b")
+            if b:
+                return b.get_text(strip=True)
+    return None
+
+
 _FLAG_BY_COLOR = {"blue": "max", "green": "up", "red": "down"}
 
 

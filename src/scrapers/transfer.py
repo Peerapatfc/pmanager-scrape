@@ -11,7 +11,7 @@ from typing import Any
 from bs4 import BeautifulSoup
 
 from src.core.logger import logger
-from src.core.utils import clean_currency, parse_skill_flags
+from src.core.utils import clean_currency, parse_skill_flags, read_stat
 from src.scrapers.base import BaseScraper
 
 
@@ -50,6 +50,9 @@ class TransferScraper(BaseScraper):
             Parsed float if ``is_curr`` is ``True``, raw string otherwise, or
             ``None`` if the label or sibling cell is not found.
         """
+        stat = read_stat(soup, label)
+        if stat is not None:
+            return clean_currency(stat) if is_curr else stat
         node = soup.find(string=re.compile(label))
         if node:
             parent = node.find_parent("td")
@@ -166,7 +169,10 @@ class TransferScraper(BaseScraper):
             data["estimated_value"] = self._get_val(soup_neg, "Estimated Transfer Value") or 0
             data["asking_price"] = self._get_val(soup_neg, "Asking Price for Bid") or 0
 
-            deadline_node = soup_neg.find(string="Deadline")
+            clock = soup_neg.find(class_="cj-clock__at")
+            deadline_node = None if clock else soup_neg.find(string="Deadline")
+            if clock:
+                data["deadline"] = clock.get_text(strip=True, separator=" ")
             if deadline_node:
                 deadline_parent = deadline_node.find_parent("td")
                 if deadline_parent:
@@ -174,7 +180,13 @@ class TransferScraper(BaseScraper):
                     if deadline_td:
                         data["deadline"] = deadline_td.get_text(strip=True, separator=" ")
 
-            bids_node = soup_neg.find(string="Bids")
+            bids_stat = read_stat(soup_neg, "Bids")
+            bids_avg_stat = read_stat(soup_neg, "Bids Average (Scout)")
+            if bids_stat is not None:
+                data["bids_count"] = bids_stat
+            if bids_avg_stat is not None:
+                data["bids_avg"] = bids_avg_stat
+            bids_node = None if bids_stat is not None else soup_neg.find(string="Bids")
             if bids_node:
                 bids_parent = bids_node.find_parent("td")
                 if bids_parent:
@@ -182,7 +194,7 @@ class TransferScraper(BaseScraper):
                     if bids_td:
                         data["bids_count"] = bids_td.get_text(strip=True)
 
-            bids_avg_node = soup_neg.find(string="Bids Average (Scout)")
+            bids_avg_node = None if bids_avg_stat is not None else soup_neg.find(string="Bids Average (Scout)")
             if bids_avg_node:
                 bids_avg_parent = bids_avg_node.find_parent("td")
                 if bids_avg_parent:
@@ -332,7 +344,10 @@ class TransferScraper(BaseScraper):
 
             data["estimated_value"] = self._get_val(soup, "Estimated Transfer Value") or 0
 
-            dl = soup.find(string="Deadline")
+            clock = soup.find(class_="cj-clock__at")
+            if clock:
+                data["deadline"] = clock.get_text(strip=True, separator=" ")
+            dl = None if clock else soup.find(string="Deadline")
             if dl:
                 parent = dl.find_parent("td")
                 if parent:
@@ -340,7 +355,13 @@ class TransferScraper(BaseScraper):
                     if val_td:
                         data["deadline"] = val_td.get_text(strip=True, separator=" ")
 
-            bids = soup.find(string="Bids")
+            bids_stat = read_stat(soup, "Bids")
+            if bids_stat is not None and bids_stat.isdigit():
+                data["bids_count"] = int(bids_stat)
+            bavg_stat = read_stat(soup, "Bids Average (Scout)")
+            if bavg_stat is not None:
+                data["bids_avg"] = bavg_stat
+            bids = None if bids_stat is not None else soup.find(string="Bids")
             if bids:
                 parent = bids.find_parent("td")
                 if parent:
@@ -350,7 +371,7 @@ class TransferScraper(BaseScraper):
                         if txt.isdigit():
                             data["bids_count"] = int(txt)
 
-            bavg = soup.find(string="Bids Average (Scout)")
+            bavg = None if bavg_stat is not None else soup.find(string="Bids Average (Scout)")
             if bavg:
                 parent = bavg.find_parent("td")
                 if parent:

@@ -13,7 +13,7 @@ from bs4 import BeautifulSoup
 
 from src import constants
 from src.core.logger import logger
-from src.core.utils import clean_currency
+from src.core.utils import clean_currency, read_stat
 from src.scrapers.base import BaseScraper
 
 
@@ -63,6 +63,9 @@ class BotTeamScraper(BaseScraper):
         Returns:
             Parsed currency value as a float, or ``0.0`` if not found.
         """
+        stat = read_stat(soup, label)
+        if stat is not None:
+            return clean_currency(stat)
         node = soup.find(string=re.compile(label))
         if node:
             parent = node.find_parent("td")
@@ -332,7 +335,9 @@ class BotTeamScraper(BaseScraper):
 
         try:
             estimated_value = self._get_neg_val(soup_neg, "Estimated Transfer Value")
-            asking_price = self._get_neg_val(soup_neg, "Asking Price")
+            asking_price = self._get_neg_val(soup_neg, "Asking Price for Bid") or self._get_neg_val(
+                soup_neg, "Asking Price"
+            )
         except Exception as e:
             logger.error("Error extracting financials for %s: %s", player_id, e, exc_info=True)
             return None
