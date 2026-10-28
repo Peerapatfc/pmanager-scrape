@@ -13,7 +13,7 @@ from bs4 import BeautifulSoup
 
 from src import constants
 from src.core.logger import logger
-from src.core.utils import clean_currency, read_stat
+from src.core.utils import clean_currency, read_player_name, read_stat
 from src.scrapers.base import BaseScraper
 
 
@@ -353,8 +353,7 @@ class BotTeamScraper(BaseScraper):
         soup_prof = BeautifulSoup(self.page.content(), "html.parser")
 
         try:
-            name_font = soup_prof.find("font", size="+1")
-            name = name_font.get_text(strip=True) if name_font else "Unknown"
+            name = read_player_name(soup_prof) or "Unknown"
 
             quality = self._get_prof_info(soup_prof, "Quality")
             position = self._get_prof_info(soup_prof, "Position")

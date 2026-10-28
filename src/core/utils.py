@@ -121,6 +121,22 @@ def read_stat(soup: Any, label: str) -> str | None:
     return None
 
 
+def read_player_name(soup: Any) -> str | None:
+    """Read the player's name from a ``ver_jogador.asp`` profile page.
+
+    The redesigned page carries it in ``<h1 class="vj-name">``; the old one in
+    ``<font size="+1">``.
+
+    Args:
+        soup: BeautifulSoup of the profile page.
+
+    Returns:
+        The name, or ``None`` when the page has neither element.
+    """
+    node = soup.select_one("h1.vj-name") or soup.find("font", size="+1")
+    return node.get_text(strip=True) if node else None
+
+
 _FLAG_BY_COLOR = {"blue": "max", "green": "up", "red": "down"}
 
 

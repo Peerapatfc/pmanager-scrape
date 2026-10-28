@@ -56,8 +56,16 @@ def main() -> None:
                 ask = details["asking_price"]
                 details["value_diff"] = est - ask
 
-                if ask > 0:
-                    details["roi"] = round(((est - ask) / ask) * 100, 2)
+                bids_avg = 0.0
+                if "bids_avg" in details:
+                    bids_avg = clean_currency(str(details["bids_avg"]))
+
+                # What buying really costs: the asking price, or the bids average when bidding has
+                # already pushed past it (the game shows an asking price of 0 for some listings).
+                cost_price = max(ask, bids_avg)
+
+                if cost_price > 0:
+                    details["roi"] = round(((est - cost_price) / cost_price) * 100, 2)
                 else:
                     details["roi"] = 0
 
@@ -66,12 +74,6 @@ def main() -> None:
                 details["forecast_sell"] = (
                     (est / constants.FORECAST_SELL_DIVISOR) * constants.FORECAST_SELL_MULTIPLIER
                 )
-
-                bids_avg = 0.0
-                if "bids_avg" in details:
-                    bids_avg = clean_currency(str(details["bids_avg"]))
-
-                cost_price = max(ask, bids_avg)
                 details["forecast_profit"] = details["forecast_sell"] - cost_price
 
             # Convert raw deadline text → ISO timestamp string

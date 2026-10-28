@@ -363,7 +363,7 @@ All data is fetched server-side in `page.tsx` files and passed to `*Client.tsx` 
 
 | Metric | Formula | Purpose |
 |--------|---------|---------|
-| ROI | `(estimated_value - asking_price) / asking_price` | Primary sort for transfer deals |
+| ROI | `(estimated_value - cost) / cost`, cost = max(asking_price, bids_avg) | Primary sort for transfer deals |
 | Value Diff | `estimated_value - asking_price` | Absolute profit potential |
 | Forecast Sell | `(estimated_value / 2) * 0.8` | Conservative resale estimate |
 | Forecast Profit | `forecast_sell - asking_price` | Expected net gain |

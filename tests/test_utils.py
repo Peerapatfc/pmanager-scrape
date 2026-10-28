@@ -8,7 +8,7 @@ import pytest
 
 from bs4 import BeautifulSoup
 
-from src.core.utils import clean_currency, parse_deadline, parse_skill_flags, read_stat
+from src.core.utils import clean_currency, parse_deadline, parse_skill_flags, read_player_name, read_stat
 
 
 class TestCleanCurrency:
@@ -157,3 +157,18 @@ class TestReadStat:
 
     def test_missing_label_returns_none(self) -> None:
         assert read_stat(self.soup, "Nope") is None
+
+
+class TestReadPlayerName:
+    """Tests for read_player_name() on the redesigned and the old profile page."""
+
+    def test_redesigned_h1(self) -> None:
+        soup = BeautifulSoup('<h1 class="vj-name">Decebal Braloştiteanu</h1>', "html.parser")
+        assert read_player_name(soup) == "Decebal Braloştiteanu"
+
+    def test_old_font_tag(self) -> None:
+        soup = BeautifulSoup('<font size="+1">Old Name</font>', "html.parser")
+        assert read_player_name(soup) == "Old Name"
+
+    def test_missing(self) -> None:
+        assert read_player_name(BeautifulSoup("<p>x</p>", "html.parser")) is None

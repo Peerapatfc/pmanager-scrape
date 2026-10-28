@@ -11,7 +11,7 @@ from typing import Any
 from bs4 import BeautifulSoup
 
 from src.core.logger import logger
-from src.core.utils import clean_currency, parse_skill_flags, read_stat
+from src.core.utils import clean_currency, parse_skill_flags, read_player_name, read_stat
 from src.scrapers.base import BaseScraper
 
 
@@ -230,8 +230,7 @@ class TransferScraper(BaseScraper):
                             return value_td.get_text(strip=True)
             return "N/A"
 
-        name_font = soup.find("font", size="+1")
-        data["name"] = name_font.get_text(strip=True) if name_font else "N/A"
+        data["name"] = read_player_name(soup) or "N/A"
         data["position"] = get_general_info("Position")
         data["age"] = get_general_info("Age").replace("Years", "").strip()
         data["nationality"] = get_general_info("Nationality")
